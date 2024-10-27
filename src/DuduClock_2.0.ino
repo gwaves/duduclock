@@ -28,16 +28,16 @@ OneButton myButton(BUTTON, true);
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("start");
+  Serial.println("start setup");
   pinMode(10,OUTPUT);//gpio10,无源蜂鸣器
   // TFT初始化
   tftInit();
-  Serial.print("after tftinit");
+  //Serial.print("after tftinit");
   // 显示系统启动文字
   drawText("系统启动中...");
-  Serial.print("after drawtext");
+  //Serial.print("after drawtext");
   // 测试的时候，先写入WiFi信息，省的配网，生产环境请注释掉
-  //setInfo4Test();
+  setInfo4Test();
   // 查询是否有配置过Wifi，没有->进入Wifi配置页面（0），有->进入天气时钟页面（1）
   getWiFiCity();
   // nvs中没有WiFi信息，进入配置页面
