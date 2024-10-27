@@ -57,8 +57,8 @@ void setInfo4Test(){
   prefs.begin("clock");
   prefs.putString("ssid", "REDACTED_CREDENTIAL");
   prefs.putString("pass", "REDACTED_CREDENTIAL");
-  prefs.putString("city", "北京");
-  prefs.putString("adm", "");
+  prefs.putString("city", "海淀");
+  prefs.putString("adm", "北京市");
   prefs.putString("location", "");
   prefs.end();
 }
