@@ -57,8 +57,8 @@ void setInfo4Test(){
   prefs.begin("clock");
   prefs.putString("ssid", "tommy-home");
   prefs.putString("pass", "tommy-ssid");
-  prefs.putString("city", "北京");
-  prefs.putString("adm", "");
+  prefs.putString("city", "海淀");
+  prefs.putString("adm", "北京市");
   prefs.putString("location", "");
   prefs.end();
 }
