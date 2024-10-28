@@ -18,6 +18,7 @@ void drawWeatherContent();
 void drawFutureWeatherPage();
 void drawWeatherPage();
 void drawTimerPage();
+void drawAlarmPage();
 void drawResetPage();
 void drawThemePage();
 void drawDateWeek();

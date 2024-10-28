@@ -81,7 +81,7 @@ const String airURL = "https://api.qweather.com/v7/air/now?key="; // 空气质�
 //const String airURL = "https://devapi.qweather.com/v7/air/now?key="; // 空气质量接口
 // 定义页面枚举 SETTING-配置页面  WEATHER-实况天气页面  FUTUREWEATHER-一周天气页面  TIMER-计时器  RESET-恢复出厂设置
 enum CurrentPage{
-  SETTING, WEATHER, AIR, FUTUREWEATHER, THEME, TIMER, RESET
+  SETTING, WEATHER, AIR, FUTUREWEATHER, THEME, TIMER, ALARM, RESET
 };
 // 定义结构体
 typedef struct {

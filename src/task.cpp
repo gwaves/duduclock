@@ -291,6 +291,33 @@ void drawTimerPage(){
   //根据计数器当前的数值进行绘制
   drawNumsByCount(timerCount);
 }
+void drawAlarmPage(){
+  //清空屏幕
+  reflashTFT();
+  //绘制标题
+  clk.createSprite(240, 60);
+  clk.loadFont(clock_other_title_35);
+  clk.setTextDatum(CC_DATUM);
+  clk.setTextColor(penColor);
+  clk.fillSprite(backFillColor);  
+  clk.drawString("闹钟设置",120,30);
+  clk.drawFastHLine(0,56,240,penColor);
+  clk.drawFastHLine(0,58,240,penColor);
+  clk.pushSprite(0,0);
+  clk.deleteSprite();
+  //显示提示文字
+  clk.setColorDepth(8);
+  clk.setTextDatum(CC_DATUM);
+  clk.loadFont(clock_timer_24);
+  clk.createSprite(240, 60);
+  clk.setTextColor(penColor);
+  clk.fillSprite(backFillColor);
+  clk.drawString("单击开启/关闭闹钟",120,45);
+  clk.drawString("长按3秒设置闹钟",120,15);
+  clk.pushSprite(0,250);
+  clk.deleteSprite();
+  clk.unloadFont(); 
+}
 // 绘制出厂设置页面
 void drawResetPage(){
   //清空屏幕
