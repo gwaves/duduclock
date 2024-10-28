@@ -70,59 +70,39 @@ void setup() {
     myButton.setDebounceMs(10); //设置消抖时长 
   }
 }
+const int tones[] = {
+    261, // C4
+    294, // D4
+    329, // E4
+    349, // F4
+    392, // G4
+    440, // A4
+};
+// 定义旋律（使用数组索引表示音符）
+const int melody[] = {0, 0, 4, 4, 5, 5, 4, -1,
+                      3, 3, 2, 2, 1, 1, 0, -1,
+                      4, 4, 3, 3, 2, 2, 1, -1,
+                      0, 0, 4, 4, 5, 5, 4, -1,
+                      3, 3, 2, 2, 1, 1, 0}; // -1表示停顿
+
+
+
+
+
 void sing_a_song()
 {
   Serial.println("sing a song");
-  tone(10,392);          //控制引脚10输出模拟值为262的脉冲
-  delay(125);         //延迟125毫秒   
-  tone(10,392);
-  delay(125);
-  tone(10,440);
-  delay(250);
-  tone(10,392);
-  delay(250);
-  tone(10,532);
-  delay(250);
-  tone(10,494);
-  delay(500);
-  tone(10,392);
-  delay(125);
-  tone(10,392);
-  delay(125);
-  tone(10,440);
-  delay(250);
-  tone(10,392);
-  delay(250);
-  tone(10,587);
-  delay(250);
-  tone(10,532);
-  delay(500);
-  tone(10,392);
-  delay(125);
-  tone(10,392);
-  delay(125);
-  tone(10,784);
-  delay(250);
-  tone(10,659);
-  delay(250);
-  tone(10,532);
-  delay(250);
-  tone(10,494);
-  delay(250);
-  tone(10,440);
-  delay(250);
-  tone(10,392);
-  delay(125);
-  tone(10,392);
-  delay(125);
-  tone(10,330);
-  delay(250);
-  tone(10,262);
-  delay(250);
-  tone(10,587);
-  delay(250);
-  tone(10,532);
-  delay(500);
+  for (int i = 0; i < sizeof(melody) / sizeof(melody[0]); i++) 
+  {
+    int freq = (melody[i] == -1) ? 0 : tones[melody[i]];
+    if (freq > 0) {
+      tone(10, freq); // 播放对应频率的音调
+        delay(500); // 每个音符持续500毫秒
+    } else {
+      noTone(10); // 停止音调
+      delay(200); // 停顿200毫秒
+        }
+  }
 }
 void loop() {
   //Serial.print("start to run\r\n");
@@ -157,6 +137,9 @@ void loop() {
         // 绘制计数器数字
         drawNumsByCount(timerCount + millis() - startMillis);
       }
+      break;
+    case ALARM:  // 闹钟页面
+      executeRunner();
       break;
     case RESET:  // 恢复出厂设置页面
       executeRunner();
@@ -202,6 +185,10 @@ void doubleclick(){
       currentPage = TIMER;
       break;
     case TIMER:
+      drawAlarmPage();
+      currentPage = ALARM;
+      break;
+    case ALARM:
       drawResetPage();
       currentPage = RESET;
       break;
@@ -214,6 +201,13 @@ void doubleclick(){
       break;
   }
 }
+uint8_t alarmHour = 0;
+uint8_t alarmMinute = 0;
+uint8_t alarmSecond = 0;
+uint8_t currentAlarmSection = 0;//0-小时，1-分钟，2-秒
+uint8_t isSettingAlarm = 0;//0-未设置，1-设置中
+
+
 void longclick(){
   if(currentPage == RESET){
     Serial.println("恢复出厂设置");
@@ -242,7 +236,37 @@ void longclick(){
     timerCount = 0; // 计数值归零
     isCouting = false; // 计数器标志位置为false
     drawNumsByCount(timerCount); // 重新绘制计数区域，提示区域不用变
+  }else if(currentPage == ALARM){
+    //长按开始设置闹钟，第一次长按设置小时，第二次长按设置分钟，第三次长按设置秒，第四次长按设置完毕
+    //短按一次，当前设置的值加1，最大不超过24小时，60分钟，60秒
+    
+
+
+    if(isSettingAlarm == 0){
+      isSettingAlarm = 1;
+      alarmHour = 0;
+      alarmMinute = 0;
+      alarmSecond = 0;
+      currentAlarmSection = 0;
+    }else{
+      //设置完毕，开始修改闹钟时间，并用task来检查是否要闹钟
+      isSettingAlarm = 0;
+      //将设置的时间存入nvs
+      Preferences preferences;
+      preferences.begin("alarm", false);
+      preferences.putUChar("hour", alarmHour);
+      preferences.putUChar("minute", alarmMinute);
+      preferences.putUChar("second", alarmSecond);
+      preferences.end();
+
+
+    }
+      drawAlarmPage();
+    //Serial.println("播放音乐");
+    //sing_a_song();
+
   }
+
 }
 ////////////////////////////////////////////////////////
 
