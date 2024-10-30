@@ -252,18 +252,19 @@ void longclick(){
       //设置完毕，开始修改闹钟时间，并用task来检查是否要闹钟
       isSettingAlarm = 0;
       //将设置的时间存入nvs
+      /*
       Preferences preferences;
       preferences.begin("alarm", false);
       preferences.putUChar("hour", alarmHour);
       preferences.putUChar("minute", alarmMinute);
       preferences.putUChar("second", alarmSecond);
       preferences.end();
-
+*/
 
     }
       drawAlarmPage();
     //Serial.println("播放音乐");
-    //sing_a_song();
+    sing_a_song();
 
   }
 
