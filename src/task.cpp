@@ -752,28 +752,29 @@ void drawTHProgressBar(int temperature, int humidity){
   //绘制温度条
   
   clk.setColorDepth(8);
-  clk.createSprite(65, 9); // 创建布局大小 宽x高
+  clk.createSprite(77, 9); // 创建布局大小 宽x高
   clk.fillSprite(backFillColor);
   //clk.drawRoundRect(0,0,65,9,2,penColor); // 画进度条外边(x方向,y方向,长度,高度,圆角,颜色)
   //clk.drawRoundRect(1,0,63,9,2,penColor); // 画进度条外边(x方向,y方向,长度,高度,圆角,颜色)
   //clk.drawFastHLine(1,1,61,penColor);
   //clk.drawFastHLine(1,7,61,penColor);
   //clk.fillRoundRect(1,2,temperatureLen,5,2,temperatureColor);// 进度条填充(x方向,y方向,长度,高度,圆角,颜色)
-  clk.pushSprite(47,250); // 布局坐标
+  clk.pushSprite(35,250); // 布局坐标
   clk.deleteSprite();
   //绘制湿度条
   clk.setColorDepth(8);
-  clk.createSprite(65, 9); // 创建布局大小 宽x高
+  clk.createSprite(77, 9); // 创建布局大小 宽x高
   clk.fillSprite(backFillColor);
   //clk.drawRoundRect(0,0,65,9,2,penColor); // 画进度条外边(x方向,y方向,长度,高度,圆角,颜色)
   //clk.drawRoundRect(1,0,63,9,2,penColor); // 画进度条外边(x方向,y方向,长度,高度,圆角,颜色)
   //clk.drawFastHLine(1,1,61,penColor);
   //clk.drawFastHLine(1,7,61,penColor);
   //clk.fillRoundRect(1,2,humidityLen,5,2,0x0E27);// 进度条填充(x方向,y方向,长度,高度,圆角,颜色)
-  clk.pushSprite(47,290); // 布局坐标
+  clk.pushSprite(35,290); // 布局坐标
   clk.deleteSprite();
   
   //显示温湿度数据
+ 
   tft.loadFont(city_wea_24);
   tft.setTextColor(penColor,backFillColor);
   if(temperature < 0){
@@ -1017,4 +1018,6 @@ void tGetLocalTempCallback()
   Serial.print(DHT.humidity,1);
   Serial.print(",\t");
   Serial.println(DHT.temperature,1);  
+  //触发一次天气数据重绘制
+  drawWeatherPage();
 }
