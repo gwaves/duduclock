@@ -70,6 +70,7 @@ void setup() {
     myButton.setDebounceMs(10); //设置消抖时长 
   }
 }
+/*
 const int tones[] = {
     261, // C4
     294, // D4
@@ -104,6 +105,7 @@ void sing_a_song()
         }
   }
 }
+*/
 void loop() {
   //Serial.print("start to run\r\n");
   //sing_a_song();
@@ -138,9 +140,11 @@ void loop() {
         drawNumsByCount(timerCount + millis() - startMillis);
       }
       break;
+/*
     case ALARM:  // 闹钟页面
       executeRunner();
       break;
+*/
     case RESET:  // 恢复出厂设置页面
       executeRunner();
       break;
@@ -185,13 +189,17 @@ void doubleclick(){
       currentPage = TIMER;
       break;
     case TIMER:
-      drawAlarmPage();
-      currentPage = ALARM;
+      drawResetPage();
+      currentPage = RESET;
+//      drawAlarmPage();
+//      currentPage = ALARM;
       break;
+/*
     case ALARM:
       drawResetPage();
       currentPage = RESET;
       break;
+*/
     case RESET:
       drawWeatherPage();
       enableAnimScrollText();
@@ -236,7 +244,7 @@ void longclick(){
     timerCount = 0; // 计数值归零
     isCouting = false; // 计数器标志位置为false
     drawNumsByCount(timerCount); // 重新绘制计数区域，提示区域不用变
-  }else if(currentPage == ALARM){
+  }/*else if(currentPage == ALARM){
     //长按开始设置闹钟，第一次长按设置小时，第二次长按设置分钟，第三次长按设置秒，第四次长按设置完毕
     //短按一次，当前设置的值加1，最大不超过24小时，60分钟，60秒
     
@@ -259,14 +267,14 @@ void longclick(){
       preferences.putUChar("minute", alarmMinute);
       preferences.putUChar("second", alarmSecond);
       preferences.end();
-*/
+
 
     }
       drawAlarmPage();
     //Serial.println("播放音乐");
     sing_a_song();
 
-  }
+  }*/
 
 }
 ////////////////////////////////////////////////////////
