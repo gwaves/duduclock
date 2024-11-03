@@ -5,7 +5,7 @@
 #include <dht11.h> //temp sensor
 
 dht11 DHT;
-#define DHT11_PIN 9   
+#define DHT11_PIN 6  
 
 enum CurrentPage currentPage = SETTING;
 String scrollText[5]; // 轮播天气的信息
