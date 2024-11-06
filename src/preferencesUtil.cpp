@@ -9,8 +9,8 @@ void getWiFiCity(){
   prefs.begin("clock");
   ssid = prefs.getString("ssid", "");
   pass = prefs.getString("pass", "");
-  city = prefs.getString("city", "");
-  adm = prefs.getString("adm", "");
+  //city = prefs.getString("city", "");
+  //adm = prefs.getString("adm", "");
   location = prefs.getString("location", "");
   prefs.end();
 }

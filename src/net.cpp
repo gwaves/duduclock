@@ -32,6 +32,8 @@ String city;  // 城市
 String adm; // 上级城市区划
 String location; // 城市ID
 String WifiNames; // 根据搜索到的wifi生成的option字符串
+
+String myPubIP;
 // SoftAP相关
 const char *APssid = "DuduClock";
 IPAddress staticIP(192, 168, 1, 1);
@@ -200,6 +202,53 @@ void scanWiFi(){
   }
 }
 
+//查询我的IP地址，并请求GEOIP库获得城市信息
+void getMyGeo(){
+  HTTPClient http;
+  //请求myipurl并解析json获得ip地址
+  http.setConnectTimeout(queryTimeout*5);
+  http.begin(myipURL);
+  int httpCode = http.GET();
+  if (httpCode== HTTP_CODE_OK)
+  {
+    /* code */
+    String payload = http.getString();
+    Serial.println(payload);
+    //解析json数据
+    DynamicJsonDocument *doc= new DynamicJsonDocument(64); //use dynamic memory allocation
+    DeserializationError error = deserializeJson(*doc, payload); //反序列化JSON数据
+    if(!error){ //检查反序列化是否成功
+      myPubIP = (*doc)["ip"].as<const char*>();
+      Serial.println("我的IP地址: " + myPubIP);
+    }
+    delete doc;//销毁doc
+  }
+  http.end();
+  //请求geoip库获得城市信息
+  http.begin(myIPGeoURL + myPubIP + myIPGeoURL2);
+  httpCode = http.GET();
+  if (httpCode== HTTP_CODE_OK)
+  {
+    /* code */
+    String payload = http.getString();
+    Serial.println(payload);
+    //解析json数据
+    DynamicJsonDocument *doc= new DynamicJsonDocument(2048); //use dynamic memory allocation
+    DeserializationError error = deserializeJson(*doc, payload); //反序列化JSON数据
+    if(!error){ //检查反序列化是否成功
+      city = (*doc)["data"][3].as<const char*>();
+      adm = (*doc)["data"][2].as<const char*>();
+      adm += "市";
+      setWiFiCity();
+      Serial.println("我的城市: " + city);
+      Serial.println("我的上级区划: " + adm);
+    }
+    delete doc;//销毁doc
+  }
+  http.end();
+
+}
+
 // 查询城市id
 void getCityID(){
   bool flag = false; // 是否成功获取到城市id的标志
@@ -253,7 +302,7 @@ void getCityID(){
       if(code.equals("200")){
         flag = true;
         // 多结果的情况下，取第一个
-        city = (*doc)["location"][0]["name"].as<const char*>();
+        //city = (*doc)["location"][0]["name"].as<const char*>();
         location = (*doc)["location"][0]["id"].as<const char*>();
         Serial.println("城市id :" + location);
         // 将信息存入nvs中

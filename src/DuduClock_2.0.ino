@@ -38,20 +38,26 @@ void setup() {
   //Serial.print("after drawtext");
   // 测试的时候，先写入WiFi信息，省的配网，生产环境请注释掉
   setInfo4Test();
+  
   // 查询是否有配置过Wifi，没有->进入Wifi配置页面（0），有->进入天气时钟页面（1）
   getWiFiCity();
   // nvs中没有WiFi信息，进入配置页面
-  if(ssid.length() == 0 || pass.length() == 0 || city.length() == 0 ){
+ // if(ssid.length() == 0 || pass.length() == 0 || city.length() == 0 ){
+    if(ssid.length() == 0 || pass.length() == 0 ){
     currentPage = SETTING; // 将页面置为配置页面
     wifiConfigBySoftAP(); // 开启SoftAP配置WiFi
   }else{ // 有WiFi信息，连接WiFi后进入时钟页面
     currentPage = WEATHER; // 将页面置为时钟页面
     // 连接WiFi,30秒超时重启并恢复出厂设置
     connectWiFi(30); 
+    
+    getMyGeo();
+    
     // 查询是否有城市id，如果没有，就利用city和adm查询出城市id，并保存为location
     if(location.equals("")){
       getCityID();
     }
+
     // 初始化一些列数据:NTP对时、实况天气、一周天气
     initDatas();
     tGetLocalTempCallback();//初始化本地温湿度
@@ -305,7 +311,7 @@ void initDatas(){
     time_t end;
     time(&end);
     if((end - start) > synDataRestartTime){
-      restartSystem("同步数据失败", true);
+      restartSystem("同步当前天气数据失败", true);
     }
     err_cnt++;
     if(err_cnt > 3) { // 错误超过三次退出。

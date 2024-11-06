@@ -74,6 +74,9 @@ const String nowURL = "https://api.qweather.com/v7/weather/now?key="; // 实时�
 //const String futureURL = "https://api.qweather.com/v7/weather/3d?key="; // 3日天气预报接口
 const String futureURL = "https://api.qweather.com/v7/weather/7d?key="; // 7日天气预报接口
 const String airURL = "https://api.qweather.com/v7/air/now?key="; // 空气质量接口
+const String myipURL = "http://ali.liutao1.com/get_ip"; // 获取本机IP地址
+const String myIPGeoURL = "http://api.ipshudi.com/ipdata/?ip=";
+const String myIPGeoURL2 = "&datatype=jsonp&token=4d3b6e67df0023fd5e1a588214be2ab7";//token
 
 //以下地址为免费API地址，每天1000次请求
 //const String nowURL = "https://devapi.qweather.com/v7/weather/now?key="; // 实时天气接口
