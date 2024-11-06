@@ -12,6 +12,7 @@ void getNTPTime(void);
 void getCityID(void);
 void checkWiFiStatus(void);
 void restartSystem(String msg, bool endTips);
+void getMyGeo(void);
 extern bool queryNowWeatherSuccess;
 extern bool queryFutureWeatherSuccess;
 extern bool queryAirSuccess;
