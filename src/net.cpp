@@ -36,7 +36,7 @@ String WifiNames; // 根据搜索到的wifi生成的option字符串
 
 String myPubIP;
 // SoftAP相关
-const char *APssid = "DuduClock";
+const char *APssid = "TaoTaoClock";
 IPAddress staticIP(192, 168, 1, 1);
 IPAddress gateway(192, 168, 1, 254);
 IPAddress subnet(255, 255, 255, 0);
@@ -78,21 +78,19 @@ void handleRoot(){
 void handleConfigWifi(){
   //判断是否有WiFi名称
   if (server.hasArg("ssid")){
-    Serial.print("获得WiFi名称:");
+    log_i("获得WiFi名称: %s",server.arg("ssid").c_str());
     ssid = server.arg("ssid");
-    Serial.println(ssid);
   }else{
-    Serial.println("错误, 没有发现WiFi名称");
+    log_e("错误, 没有发现WiFi名称");
     server.send(200, "text/html", "<meta charset='UTF-8'>错误, 没有发现WiFi名称");
     return;
   }
   //判断是否有WiFi密码
   if (server.hasArg("pass")){
-    Serial.print("获得WiFi密码:");
-    pass = server.arg("pass");
-    Serial.println(pass);
+    log_i("获得WiFi密码:%s",server.arg("pass").c_str());
+    pass = server.arg("pass");    
   }else{
-    Serial.println("错误, 没有发现WiFi密码");
+    log_e("错误, 没有发现WiFi密码");
     server.send(200, "text/html", "<meta charset='UTF-8'>错误, 没有发现WiFi密码");
     return;
   }
@@ -117,15 +115,45 @@ void handleConfigWifi(){
   server.send(200, "text/html", "<meta charset='UTF-8'><style type='text/css'>body {font-size: 2rem;}</style><br/><br/>WiFi: " + ssid + "<br/>密码: " + pass + "<br/>已取得相关信息,正在尝试连接,请手动关闭此页面。");
   restartSystem("即将尝试连接", false);
 }
-
+//尝试连接默认的wifi，如果失败，返回，并进入正常wifi获取流程
+int connectDefaultWiFi(int timeOut_s){
+  delay(1500); // 让“系统启动中”字样多显示一会
+  drawText("正在连接默认网络...");
+  int connectTime = 0; //用于连接计时，如果长时间连接不成功，复位设备
+  pinMode(D4,OUTPUT);
+  ssid = "TOMMY-HOME";
+  log_i("正在连接网络%s",ssid.c_str());
+  pass = "TOMMY-SSID";
+  
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    log_printf(".");
+    digitalWrite(D4, !digitalRead(D4));
+    delay(500);
+    connectTime++;
+    if (connectTime > 2 * timeOut_s){ //长时间连接不上，清除nvs中保存的网络数据，并重启系统
+      log_e("网络连接失败");
+      ssid = "";
+      pass = "";
+      return -1;
+    }
+    return 0;
+  }
+  digitalWrite(D4, LOW); // 连接成功后，将D4指示灯熄灭
+  log_i("网络连接成功");
+  log_i("本地IP: %s",WiFi.localIP().toString().c_str());
+ // Serial.println("网络连接成功");
+ // Serial.print("本地IP： ");
+ // Serial.println(WiFi.localIP());
+}
 // 连接WiFi
 void connectWiFi(int timeOut_s){
   delay(1500); // 让“系统启动中”字样多显示一会
   drawText("正在连接网络...");
   int connectTime = 0; //用于连接计时，如果长时间连接不成功，复位设备
   pinMode(D4,OUTPUT);
-  log_e("正在连接网络");
-  log_e("%s",ssid.c_str());
+  log_i("正在连接网络");
+  log_i("%s",ssid.c_str());
   
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
@@ -150,7 +178,8 @@ void connectWiFi(int timeOut_s){
 // 检查WiFi连接状态，如果断开了，重新连接
 void checkWiFiStatus(){
   if(WiFi.status() != WL_CONNECTED){ // 网络断开了，进行重连
-    Serial.println("网络断开，即将重新连接...");
+    
+    log_e("网络断开，即将重新连接...");
     WiFi.begin(ssid, pass);
   }
 }
@@ -163,30 +192,29 @@ void startServer(){
   // 当浏览器请求的网络资源无法在服务器找到时调用自定义函数handleNotFound处理   
   server.onNotFound(handleNotFound);
   server.begin();
-  Serial.println("服务器启动成功！");
+  log_i("服务器启动成功！");
 }
 // 开启AP模式，如果开启失败，重启系统
 void startAP(){
-  Serial.println("开启AP模式...");
+  log_i("开启AP模式...");
   WiFi.enableAP(true); // 使能AP模式
   //传入参数静态IP地址,网关,掩码
   WiFi.softAPConfig(staticIP, gateway, subnet);
   if (!WiFi.softAP(APssid)) {
-    Serial.println("AP模式启动失败");
+    log_e("AP模式启动失败");
     ESP.restart(); // Ap模式启动失败，重启系统
   }  
-  Serial.println("AP模式启动成功");
-  Serial.print("IP地址: ");
-  Serial.println(WiFi.softAPIP());
+  log_i("AP模式启动成功");
+  log_i("IP地址:%s ",WiFi.softAPIP().toString().c_str());
+  
 }
 // 扫描WiFi,并将扫描到的Wifi组成option选项字符串
 void scanWiFi(){
-  Serial.println("开始扫描WiFi");
+  log_i("开始扫描WiFi");
   int n = WiFi.scanNetworks();
   if (n){
-    Serial.print("扫描到");
-    Serial.print(n);
-    Serial.println("个WIFI");
+    log_i("扫描到%d个WIFI",n);
+    
     WifiNames = "";
     for (size_t i = 0; i < n; i++){
       int32_t rssi = WiFi.RSSI(i);
@@ -205,7 +233,7 @@ void scanWiFi(){
       // Serial.println(WiFi.SSID(i));
     }
   }else{
-    Serial.println("没扫描到WIFI");
+    log_e("没扫描到WIFI");
   }
 }
 
@@ -295,13 +323,13 @@ int getCityID(){
   httpClient.begin(url);
   //启动连接并发送HTTP请求
   int httpCode = httpClient.GET();
-  log_d("正在获取城市id");
+  log_i("正在获取城市id");
   
   // 处理服务器答复
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
     int len = httpClient.getSize();
-    if(len >= 8192)
+    if(len >= 4096)
     {
       log_e("数据流太大，无法处理");
       return -1;
@@ -356,26 +384,26 @@ int getCityID(){
         // 多结果的情况下，取第一个
         //city = (*doc)["location"][0]["name"].as<const char*>();
         location = (*doc)["location"][0]["id"].as<const char*>();
-        Serial.println("城市id :" + location);
+        log_i("城市id :%s",location);
         // 将信息存入nvs中
         setNvsCityID();
       }
     } else {
-      Serial.println("JSON反序列化失败");
+      log_e("JSON反序列化失败");
     }
     delete doc;//销毁doc  
   } else {
-    Serial.print("HTTP请求失败，错误代码：");
-    Serial.println(httpCode);
+    log_e("HTTP请求失败，错误代码：%s",httpCode);
+    
   }
   if(!flag){
-    Serial.print("获取城市id错误：");
-    Serial.println(httpCode);
-    Serial.print("城市错误，即将重启系统");
+    log_e("获取城市id错误：%d",httpCode);
+    
+    log_e("城市错误，即将重启系统");
     clearWiFiCity(); // 清除配置好的信息
     restartSystem("城市名称无效", false);
   }
-  Serial.println("获取成功");
+  log_i("获取城市ID成功");
   //关闭与服务器连接
   httpClient.end();
   return 0;
@@ -391,7 +419,7 @@ void getNowWeather(){
   //启动连接并发送HTTP请求
   int httpCode = httpClient.GET();
   // Serial.println(ESP.getFreeHeap());
-  Serial.println("正在获取天气数据");
+  log_i("正在获取天气数据");
   //如果服务器响应OK则从服务器获取响应体信息并通过串口输出
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
@@ -399,7 +427,14 @@ void getNowWeather(){
     //uint8_t buff[2048] = { 0 };
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
     if (buff == nullptr) {
-      Serial.println("getNowWeather内存分配失败");
+      log_e("getNowWeather内存分配失败");
+      return;
+    }
+    outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
+    if(outbuf == nullptr){
+      log_e("outbuf内存分配失败");
+      httpClient.end();
+      free(buff);
       return;
     }
     WiFiClient *stream = httpClient.getStreamPtr();
@@ -412,19 +447,20 @@ void getNowWeather(){
         size_t readBytesSize = stream->readBytes(buff, realsize);
         // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
-        outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
+        
         uint32_t outprintsize = 0;
         int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 5120, outprintsize);
         // Serial.write(outbuf, outprintsize);
         for (int i = 0; i < outprintsize; i++) {
           data += (char)outbuf[i];
         }
-        free(outbuf);
-        Serial.println(data);
+        
+        log_v(data.c_str());
       }
       delay(1);
     }
     free(buff);
+    free(outbuf);
     // 解压完，转换json数据
 
     //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
@@ -447,14 +483,13 @@ void getNowWeather(){
         nowWeather.humidity = (*doc)["now"]["humidity"].as<int>();
         String vis = (*doc)["now"]["vis"];
         nowWeather.vis = "能见度" + vis + " KM";
-        Serial.println("获取成功");
+        log_i("当前天气获取成功");
       }
     }  
     delete doc;//销毁doc
   }
   if(!queryNowWeatherSuccess){
-    Serial.print("请求实时天气错误：");
-    Serial.println(httpCode);
+    log_e("请求实时天气错误：%s",httpCode);
   }
   //关闭与服务器连接
   httpClient.end();
@@ -468,7 +503,7 @@ void getAir(){
   httpClient.begin(url);
   //启动连接并发送HTTP请求
   int httpCode = httpClient.GET();
-  Serial.println("正在获取空气质量数据");
+  log_i("正在获取空气质量数据");
   //如果服务器响应OK则从服务器获取响应体信息并通过串口输出
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
@@ -476,7 +511,14 @@ void getAir(){
     //uint8_t buff[2048] = { 0 };
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
     if (buff == nullptr) {
-      Serial.println("getair内存分配失败");
+      log_e("getair内存分配失败");
+      return;
+    }
+    outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 20480);
+    if(outbuf == nullptr){
+      log_e("outbuf内存分配失败");
+      httpClient.end();
+      free(buff);
       return;
     }
     WiFiClient *stream = httpClient.getStreamPtr();
@@ -489,23 +531,24 @@ void getAir(){
         size_t readBytesSize = stream->readBytes(buff, realsize);
         // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
-        outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 20480);
+        
         uint32_t outprintsize = 0;
         int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 20480, outprintsize);
         // Serial.write(outbuf, outprintsize);
         for (int i = 0; i < outprintsize; i++) {
           data += (char)outbuf[i];
         }
-        free(outbuf);
-        Serial.println(data);
+        
+        log_v("%s",data.c_str());
       }
       delay(1);
     }
     free(buff);
+    free(outbuf);
     // 解压完，转换json数据
     DynamicJsonDocument *doc= new DynamicJsonDocument(2048); //use dynamic memory allocation
     if(doc == nullptr){
-      Serial.println("getAir内存分配失败");
+      log_e("getAir内存分配失败");
       return;
     }
     //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
@@ -523,14 +566,13 @@ void getAir(){
         nowWeather.so2 = (*doc)["now"]["so2"].as<const char*>();
         nowWeather.co = (*doc)["now"]["co"].as<const char*>();
         nowWeather.o3 = (*doc)["now"]["o3"].as<const char*>();
-        Serial.println("获取成功");
+        log_i("当前天气获取成功");
       }
     }  
     delete doc;//销毁doc
   } 
   if(!queryAirSuccess){
-    Serial.print("请求空气质量错误：");
-    Serial.println(httpCode);
+    log_e("请求空气质量错误：%s",httpCode);
   }
   //关闭与服务器连接
   httpClient.end();
@@ -540,47 +582,55 @@ void getFutureWeather(){
   data = "";
   queryFutureWeatherSuccess = false; // 先置为false
   String url = futureURL + KEY + "&location=" + location;
-  Serial.println(url);
+  log_v("查询未来天气URL：%s",url);
   httpClient.setConnectTimeout(queryTimeout);
   httpClient.begin(url);
   //启动连接并发送HTTP请求
   int httpCode = httpClient.GET();
-  Serial.println("正在获取一周天气数据");
+  log_i("正在获取一周天气数据");
   //如果服务器响应OK则从服务器获取响应体信息并通过串口输出
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
     
     int len = httpClient.getSize();
-    Serial.printf("HTTP ok, len: %d\n", len);
+    log_v("HTTP ok, len: %d\n", len);
     //uint8_t buff[2048] = { 0 };
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
     if(buff == nullptr){
-      Serial.println("getFutureWeather内存分配失败");
+      log_e("getFutureWeather内存分配失败");
+      return;
+    }
+    outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
+    if(outbuf == nullptr){
+      log_e("outbuf内存分配失败");
+      httpClient.end();
+      free(buff);
       return;
     }
     WiFiClient *stream = httpClient.getStreamPtr();
     while (httpClient.connected() && (len > 0 || len == -1)) {
       size_t size = stream->available();  // 还剩下多少数据没有读完？
-      Serial.println(size);
+      log_v(size);
       if (size) {
         size_t realsize = ((size > HTTP_BUFF_SIZE) ? HTTP_BUFF_SIZE : size);
         // Serial.println(realsize);
         size_t readBytesSize = stream->readBytes(buff, realsize);
         // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
-        outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
+        
         uint32_t outprintsize = 0;
         int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 5120, outprintsize);
-        Serial.write(outbuf, outprintsize);
+        //Serial.write(outbuf, outprintsize);
         for (int i = 0; i < outprintsize; i++) {
           data += (char)outbuf[i];
         }
-        free(outbuf);
+        
 //      Serial.println(data);
       }
       delay(1);
     }
     free(buff);
+    free(outbuf);
    
     // 解压完，转换json数据
     //设置一个json过滤器以减少实际的解析存储空间
@@ -601,12 +651,12 @@ void getFutureWeather(){
     //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
     DeserializationError error = deserializeJson(*doc, data,DeserializationOption::Filter(jsonFilter)); //反序列化JSON数据
     
-    Serial.printf("deserializeJson: %d\n", error);
+    log_v("deserializeJson: %d\n", error);
     if(!error){ //检查反序列化是否成功
       //读取json节点
-      serializeJsonPretty(*doc, Serial);
+      //serializeJsonPretty(*doc, Serial);
       size_t serializedSize = measureJson(*doc);
-      Serial.printf("反序列化成功,data_len: %d\n",serializedSize);
+      log_v("反序列化成功,data_len: %d\n",serializedSize);
       String code = (*doc)["code"].as<const char*>();
       
       if(code.equals("200")){
@@ -655,14 +705,13 @@ void getFutureWeather(){
         futureWeather.day6tem_day = (*doc)["daily"][6]["tempMax"].as<int>();
         futureWeather.day6tem_night = (*doc)["daily"][6]["tempMin"].as<int>();
 
-        Serial.println("获取成功");
+        log_i("7天天气获取成功");
       }
     }  
     delete doc;//销毁doc
   } 
   if(!queryFutureWeatherSuccess){
-    Serial.print("请求一周天气错误：");
-    Serial.println(httpCode);
+    log_e("请求一周天气错误：%d",httpCode);
   }
   //关闭与服务器连接
   httpClient.end();
@@ -672,9 +721,9 @@ void getFutureWeather(){
 void getNTPTime(){
   // 8 * 3600 东八区时间修正
   // 使用夏令时 daylightOffset_sec 就填写3600，否则就填写0；
-  Serial.println("NTP对时...");
+  log_i("NTP对时...");
   configTime( 8 * 3600, 0, NTP1, NTP2, NTP3);
-  Serial.println("ntp ok");
+  log_i("ntp ok");
 }
 // 重启系统
 // bool endTips  是否需要把“同步天气数据”文字的定时器任务取消

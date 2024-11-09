@@ -28,7 +28,7 @@ OneButton myButton(BUTTON, true);
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("start setup");
+  log_v("start setup");
   
   // TFT初始化
   tftInit();
@@ -44,8 +44,14 @@ void setup() {
   getNvsWifi();
 // nvs中没有WiFi信息，进入配置页面
   if(ssid.length() == 0 || pass.length() == 0 ){
-    currentPage = SETTING; // 将页面置为配置页面
-    wifiConfigBySoftAP(); // 开启SoftAP配置WiFi
+    if(connectDefaultWiFi(10)==0){
+      //连接默认wifi成功，不进入配置页面，直接进入时钟页面
+      currentPage = WEATHER;
+      
+    }else{
+      currentPage = SETTING; // 将页面置为配置页面
+      wifiConfigBySoftAP(); // 开启SoftAP配置WiFi
+    }
   }else{ // 有WiFi信息，连接WiFi后进入时钟页面
     currentPage = WEATHER; // 将页面置为时钟页面
     // 连接WiFi,30秒超时重启并恢复出厂设置

@@ -15,14 +15,13 @@ uint16_t penColor;
 //#define TFT_DC		4  // Data Command control pin
 //#define TFT_RST		5  // Reset pin (could connect to RST pin)
 void tftInit(){
-//  Serial.println("before tft.init");
-//  sleep(1);
+
   tft.init();
-//  Serial.print("tft.init");
+
   tft.setSwapBytes(true);
   getBackColor();
-  Serial.printf("backcolor is %d\r\n",backColor);
-  Serial.printf("mosi:%d,sclk:%d,cs:%d,DC:%d,RST:%d\r\n",TFT_MOSI,TFT_SCLK,TFT_CS,TFT_DC,TFT_RST);
+  log_v("backcolor is %d\r\n",backColor);
+  log_v("mosi:%d,sclk:%d,cs:%d,DC:%d,RST:%d\r\n",TFT_MOSI,TFT_SCLK,TFT_CS,TFT_DC,TFT_RST);
   if(backColor == BACK_BLACK){
     backFillColor = 0x0000;
     penColor = 0xFFFF;

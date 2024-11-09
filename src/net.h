@@ -4,6 +4,7 @@
 
 void wifiConfigBySoftAP(void);
 void doClient(void);
+int connectDefaultWiFi(int timeOut_s);
 void connectWiFi(int timeOut_s);
 void getNowWeather(void);
 void getFutureWeather(void);
