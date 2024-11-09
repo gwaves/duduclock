@@ -358,7 +358,7 @@ void tCheckTimeCallback(){
 }
 // 检查Wifi状态,如果失败，重新连接
 void tCheckWiFiCallback(){
-  Serial.println("开始检查网络状态");
+  log_i("开始检查网络状态");
   checkWiFiStatus();
 }
 // 绘制太空人任务
@@ -967,31 +967,29 @@ void tGetLocalTempCallback()
 {
   int chk;
   int errCnt=0;
-  Serial.print("DHT11, \t");
+  log_v("DHT11, \t");
   chk = DHT.read(DHT11_PIN);    // READ DATA
   while(chk != DHTLIB_OK && errCnt < 5){
-    delay(1000);
+    delay(100);
     chk = DHT.read(DHT11_PIN);    // READ DATA
     errCnt++;
   }
   switch (chk){
     case DHTLIB_OK:  
-                Serial.print("OK,\t"); 
+                log_v("OK,\t"); 
                 break;
     case DHTLIB_ERROR_CHECKSUM: 
-                Serial.print("Checksum error,\t"); 
+                log_e("DHT11 Checksum error"); 
                 break;
     case DHTLIB_ERROR_TIMEOUT: 
-                Serial.print("Time out error,\t"); 
+                log_e("DHT11 Time out error"); 
                 break;
     default: 
-                Serial.print("Unknown error,\t"); 
+                log_e("DHT11 Unknown error"); 
                 break;
   }
  // DISPLAT DATA
-  Serial.print(DHT.humidity,1);
-  Serial.print(",\t");
-  Serial.println(DHT.temperature,1);  
+  log_v("%d \t %d",DHT.humidity,DHT.temperature);
   //触发一次天气数据重绘制
   drawWeatherPage();
 }
