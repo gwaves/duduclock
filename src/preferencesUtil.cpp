@@ -14,7 +14,19 @@ void getWiFiCity(){
   location = prefs.getString("location", "");
   prefs.end();
 }
+void getNvsWifi(){
+  prefs.begin("clock");
+  ssid = prefs.getString("ssid", "");
+  pass = prefs.getString("pass", "");
+  prefs.end();
+}
 
+void setNvsWifi(){
+  prefs.begin("clock");
+  prefs.putString("ssid", ssid);
+  prefs.putString("pass", pass);
+  prefs.end();
+}
 // 写入Wifi账号、密码和城市名称
 void setWiFiCity(){
   prefs.begin("clock");
@@ -25,7 +37,36 @@ void setWiFiCity(){
   prefs.putString("location", location);
   prefs.end();
 }
-
+void setNvsCity(){
+  prefs.begin("clock");
+  prefs.putString("city", city);
+  prefs.putString("adm", adm);
+  prefs.putString("location", location);
+  prefs.end();
+}
+void setNvsCityID(){
+  prefs.begin("clock");
+  prefs.putString("location", location);
+  prefs.end();
+}
+void getNvsCityID(){
+  prefs.begin("clock");
+  location = prefs.getString("location", "");
+  prefs.end();
+}
+void getNvsCity(){
+  prefs.begin("clock");
+  city = prefs.getString("city", "");
+  adm = prefs.getString("adm", "");
+  location = prefs.getString("location", "");
+  prefs.end();
+}
+void clearNvsWifi(){
+  prefs.begin("clock");
+  prefs.remove("ssid");
+  prefs.remove("pass");
+  prefs.end();
+}
 // 清除Wifi账号、密码和城市相关信息
 void clearWiFiCity(){
   prefs.begin("clock");

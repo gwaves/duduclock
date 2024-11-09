@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ArduinoJson.h>
+#include <esp32-hal-log.h>
 #include "ArduinoZlib.h"
 #include "common.h"
 #include "PreferencesUtil.h"
@@ -96,7 +97,7 @@ void handleConfigWifi(){
     return;
   }
   //判断是否有city名称
-  if (server.hasArg("city")){
+/*  if (server.hasArg("city")){
     Serial.print("获得城市:");
     city = server.arg("city");
     Serial.println(city);
@@ -105,13 +106,15 @@ void handleConfigWifi(){
     server.send(200, "text/html", "<meta charset='UTF-8'>错误, 没有发现城市名称");
     return;
   }
+
   Serial.print("获得上级区划:");
   adm = server.arg("adm");
   Serial.println(adm);
+*/
   // 将信息存入nvs中
-  setWiFiCity();
+  setNvsWifi();
   // 获得了所需要的一切信息，给客户端回复
-  server.send(200, "text/html", "<meta charset='UTF-8'><style type='text/css'>body {font-size: 2rem;}</style><br/><br/>WiFi: " + ssid + "<br/>密码: " + pass + "<br/>城市: " + city + "<br/>上级区划: " + adm + "<br/>已取得相关信息,正在尝试连接,请手动关闭此页面。");
+  server.send(200, "text/html", "<meta charset='UTF-8'><style type='text/css'>body {font-size: 2rem;}</style><br/><br/>WiFi: " + ssid + "<br/>密码: " + pass + "<br/>已取得相关信息,正在尝试连接,请手动关闭此页面。");
   restartSystem("即将尝试连接", false);
 }
 
@@ -121,8 +124,9 @@ void connectWiFi(int timeOut_s){
   drawText("正在连接网络...");
   int connectTime = 0; //用于连接计时，如果长时间连接不成功，复位设备
   pinMode(D4,OUTPUT);
-  Serial.print("正在连接网络");
-  Serial.println(ssid);
+  log_e("正在连接网络");
+  log_e("%s",ssid.c_str());
+  
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
@@ -130,15 +134,18 @@ void connectWiFi(int timeOut_s){
     delay(500);
     connectTime++;
     if (connectTime > 2 * timeOut_s){ //长时间连接不上，清除nvs中保存的网络数据，并重启系统
-      Serial.println("网络连接失败,即将重新开始配置网络...");
-      clearWiFiCity();
+      //Serial.println("网络连接失败,即将重新开始配置网络...");
+      log_e("网络连接失败");
+      clearNvsWifi();
       restartSystem("网络连接失败", false);
     }
   }
   digitalWrite(D4, LOW); // 连接成功后，将D4指示灯熄灭
-  Serial.println("网络连接成功");
-  Serial.print("本地IP： ");
-  Serial.println(WiFi.localIP());
+  log_i("网络连接成功");
+  log_i("本地IP: %s",WiFi.localIP().toString().c_str());
+ // Serial.println("网络连接成功");
+ // Serial.print("本地IP： ");
+ // Serial.println(WiFi.localIP());
 }
 // 检查WiFi连接状态，如果断开了，重新连接
 void checkWiFiStatus(){
@@ -202,74 +209,117 @@ void scanWiFi(){
   }
 }
 
-//查询我的IP地址，并请求GEOIP库获得城市信息
-void getMyGeo(){
+//查询我的公网地址
+int getMyPubIP(){
   HTTPClient http;
-  //请求myipurl并解析json获得ip地址
-  http.setConnectTimeout(queryTimeout*5);
+  http.setConnectTimeout(queryTimeout);
   http.begin(myipURL);
   int httpCode = http.GET();
   if (httpCode== HTTP_CODE_OK)
   {
     /* code */
     String payload = http.getString();
-    Serial.println(payload);
+    log_d("%s",payload);
     //解析json数据
-    DynamicJsonDocument *doc= new DynamicJsonDocument(64); //use dynamic memory allocation
-    DeserializationError error = deserializeJson(*doc, payload); //反序列化JSON数据
+    StaticJsonDocument<64> doc;//小请求，用静态分配
+    DeserializationError error = deserializeJson(doc, payload); //反序列化JSON数据
     if(!error){ //检查反序列化是否成功
-      myPubIP = (*doc)["ip"].as<const char*>();
-      Serial.println("我的IP地址: " + myPubIP);
+      myPubIP = doc["ip"].as<const char*>();
+      log_i("我的IP地址: %s",myPubIP);
     }
-    delete doc;//销毁doc
+    else{
+      log_e("解析json数据失败");
+      http.end();
+      return -1;
+    }
+  }
+  else{
+    log_e("获取IP地址错误：");
+    log_e("HTTP Code: %d", httpCode);
+    log_e("IP地址错误，即将重启系统");
+    http.end();
+    return -1;
+    
   }
   http.end();
+  return 0;
+}
+
+//请求GEOIP库获得城市信息
+int getMyGeo(){
+  HTTPClient http;
+  //请求myipurl并解析json获得ip地址
+  http.setConnectTimeout(queryTimeout*5);
   //请求geoip库获得城市信息
   http.begin(myIPGeoURL + myPubIP + myIPGeoURL2);
-  httpCode = http.GET();
+  int httpCode = http.GET();
   if (httpCode== HTTP_CODE_OK)
   {
     /* code */
     String payload = http.getString();
-    Serial.println(payload);
+    log_d("%s",payload);
     //解析json数据
-    DynamicJsonDocument *doc= new DynamicJsonDocument(2048); //use dynamic memory allocation
-    DeserializationError error = deserializeJson(*doc, payload); //反序列化JSON数据
+    StaticJsonDocument<2048> doc; //use static memory allocation
+    DeserializationError error = deserializeJson(doc, payload); //反序列化JSON数据
     if(!error){ //检查反序列化是否成功
-      city = (*doc)["data"][3].as<const char*>();
-      adm = (*doc)["data"][2].as<const char*>();
+      city = doc["data"][3].as<const char*>();
+      adm = doc["data"][2].as<const char*>();
       adm += "市";
-      setWiFiCity();
-      Serial.println("我的城市: " + city);
-      Serial.println("我的上级区划: " + adm);
+      setNvsCity();
+      log_i("我的城市:%s ",city.c_str());
+      log_i("我的上级区划:%s ",adm.c_str());
     }
-    delete doc;//销毁doc
+    else{
+      log_e("解析json数据失败");
+      return -1;      
+    }
+    
+  }
+  else{// http code 不是200
+    log_e("获取城市错误：");
+    log_e("HTTP Code: %d", httpCode);
+    http.end();
+    return -1;
   }
   http.end();
-
+  return 0;
 }
 
 // 查询城市id
-void getCityID(){
+int getCityID(){
   bool flag = false; // 是否成功获取到城市id的标志
   String url = cityURL + KEY + "&location=" + urlEncode(city) + "&adm=" + urlEncode(adm);
-  // Serial.println(url);
+  
+  log_d("url: %s",url.c_str());
   httpClient.setConnectTimeout(queryTimeout * 5);
   httpClient.begin(url);
   //启动连接并发送HTTP请求
   int httpCode = httpClient.GET();
-  Serial.println("正在获取城市id");
+  log_d("正在获取城市id");
+  
   // 处理服务器答复
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
     int len = httpClient.getSize();
-    //uint8_t buff[2048] = { 0 };
-    uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
+    if(len >= 8192)
+    {
+      log_e("数据流太大，无法处理");
+      return -1;
+    }
+   
+    uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * len); // 动态分配buff
     if (buff == nullptr) {
-      Serial.println("内存分配失败");
-      return;
+      log_e("getCityID内存分配失败");
+      return -1;
+    }
+    outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120); // 动态分配outbuf,用于解压
+    if (outbuf == nullptr) {
+      log_e("outbuf内存分配失败");
+      free(buff);
+      return -1;
     }
     WiFiClient *stream = httpClient.getStreamPtr();
+    int counter = 0; // Counter to reduce frequency of serial prints
     while (httpClient.connected() && (len > 0 || len == -1)) {
       size_t size = stream->available();  // 还剩下多少数据没有读完？
       // Serial.println(size);
@@ -279,19 +329,21 @@ void getCityID(){
         size_t readBytesSize = stream->readBytes(buff, realsize);
         // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
-        outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
         uint32_t outprintsize = 0;
         int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 5120, outprintsize);
         // Serial.write(outbuf, outprintsize);
         for (int i = 0; i < outprintsize; i++) {
           data += (char)outbuf[i];
         }
-        free(outbuf);
-        Serial.println(data);
+        if (counter % 10 == 0) { // Print every 10 iterations
+          Serial.println(data);
+        }
+        counter++;
       }
       delay(1);
     }
     free(buff);
+    free(outbuf);
     // 解压完，转换json数据
     //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
     DynamicJsonDocument *doc= new DynamicJsonDocument(2048); //use dynamic memory allocation
@@ -306,10 +358,15 @@ void getCityID(){
         location = (*doc)["location"][0]["id"].as<const char*>();
         Serial.println("城市id :" + location);
         // 将信息存入nvs中
-        setWiFiCity();
+        setNvsCityID();
       }
+    } else {
+      Serial.println("JSON反序列化失败");
     }
     delete doc;//销毁doc  
+  } else {
+    Serial.print("HTTP请求失败，错误代码：");
+    Serial.println(httpCode);
   }
   if(!flag){
     Serial.print("获取城市id错误：");
@@ -321,6 +378,7 @@ void getCityID(){
   Serial.println("获取成功");
   //关闭与服务器连接
   httpClient.end();
+  return 0;
 }
 
 // 查询实时天气
@@ -632,13 +690,14 @@ void restartSystem(String msg, bool endTips){
     draw2LineText(msg,text);
     delay(1000);
   }
+  /*
   while(1)
   {
     sleep(2);
     Serial.println("请重启系统");
   }
-  
-  //ESP.restart();
+  */
+  ESP.restart();
 }
 
 String urlEncode(const String& text) {

@@ -217,8 +217,8 @@ const String ROOT_HTML_PAGE1 PROGMEM = R"rawliteral(
     </style>
 </head>
 <body>
-    <div id='titleDiv'>Dudu时钟2.0</div>
-    <div id='tail'>呈杰希工作室&nbsp&nbsp&nbsp&nbsp出品</div>
+    <div id='titleDiv'>Taotao时钟2.0</div>
+    <div id='tail'>gwaves工作室&nbsp&nbsp&nbsp&nbsp出品</div>
     <form action='configwifi' method='post' id='form' accept-charset="UTF-8">
         <div class='titleOption commonWidth'>WiFi名称</div>
         <div id='selectDiv' class='commonWidth'>
@@ -230,10 +230,6 @@ const String ROOT_HTML_PAGE2 PROGMEM = R"rawliteral(
         </div>
         <div class='titleOption commonWidth'>WiFi密码</div>
         <input type='text' placeholder='请输入WiFi密码' name='pass' id='pass' class='passAndCity commonWidth'>
-        <div class='titleOption commonWidth'>城市名称（ 无需"市区县", 例 : 江阴 ）</div>
-        <input type='text' placeholder='请输入城市名称' name='city' id='city' class='passAndCity commonWidth'>
-        <div class='titleOption commonWidth'>上级行政区划</div>
-        <input type='text' placeholder='用于区分重名城市、区县，可不填' name='adm' id='adm' class='passAndCity commonWidth'>
         <div id='sub' onclick='doSubmit()'>提交</div>
     </form>
     <script type='text/javascript'>
@@ -246,10 +242,6 @@ const String ROOT_HTML_PAGE2 PROGMEM = R"rawliteral(
             }
             if(document.getElementById('pass').value == ''){
                 alert('请输入该WiFi的密码');
-                return;
-            }
-            if(document.getElementById('city').value == ''){
-                alert('请输入城市名称');
                 return;
             }
             document.getElementById('form').submit();
