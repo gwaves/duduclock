@@ -29,21 +29,21 @@ OneButton myButton(BUTTON, true);
 void setup() {
   Serial.begin(115200);
   Serial.println("start setup");
-  pinMode(10,OUTPUT);//gpio10,无源蜂鸣器
+  
   // TFT初始化
   tftInit();
-  //Serial.print("after tftinit");
+  
   // 显示系统启动文字
   drawText("系统启动中...");
-  //Serial.print("after drawtext");
+  
   // 测试的时候，先写入WiFi信息，省的配网，生产环境请注释掉
-  setInfo4Test();
+  //setInfo4Test();
   
   // 查询是否有配置过Wifi，没有->进入Wifi配置页面（0），有->进入天气时钟页面（1）
-  getWiFiCity();
-  // nvs中没有WiFi信息，进入配置页面
- // if(ssid.length() == 0 || pass.length() == 0 || city.length() == 0 ){
-    if(ssid.length() == 0 || pass.length() == 0 ){
+  //getWiFiCity();
+  getNvsWifi();
+// nvs中没有WiFi信息，进入配置页面
+  if(ssid.length() == 0 || pass.length() == 0 ){
     currentPage = SETTING; // 将页面置为配置页面
     wifiConfigBySoftAP(); // 开启SoftAP配置WiFi
   }else{ // 有WiFi信息，连接WiFi后进入时钟页面
@@ -51,8 +51,41 @@ void setup() {
     // 连接WiFi,30秒超时重启并恢复出厂设置
     connectWiFi(30); 
     
-    getMyGeo();
-    
+    int ret = 0;
+    int retryCnt = 0;
+    getNvsCity();
+    if(city.equals("")){
+      ret = getMyPubIP();
+      while(ret != 0 && retryCnt < 3){
+        ret = getMyPubIP();
+        if(ret == 0){
+          retryCnt = 0;
+          break;
+        }
+        retryCnt++;
+      }
+      if(ret != 0 && retryCnt >= 3){
+        restartSystem("获取公网IP失败", true);
+      }
+
+      retryCnt = 0;
+      ret = getMyGeo();
+      while(ret != 0 && retryCnt < 3){
+        ret = getMyGeo();
+        if(ret == 0){
+          retryCnt = 0;
+          break;
+        }
+        retryCnt++;
+      }
+      if (ret != 0 && retryCnt >= 3)
+      {
+        restartSystem("获取城市信息失败", true);
+      }
+      
+    }
+
+   
     // 查询是否有城市id，如果没有，就利用city和adm查询出城市id，并保存为location
     if(location.equals("")){
       getCityID();
@@ -197,15 +230,7 @@ void doubleclick(){
     case TIMER:
       drawResetPage();
       currentPage = RESET;
-//      drawAlarmPage();
-//      currentPage = ALARM;
       break;
-/*
-    case ALARM:
-      drawResetPage();
-      currentPage = RESET;
-      break;
-*/
     case RESET:
       drawWeatherPage();
       enableAnimScrollText();
@@ -215,11 +240,6 @@ void doubleclick(){
       break;
   }
 }
-uint8_t alarmHour = 0;
-uint8_t alarmMinute = 0;
-uint8_t alarmSecond = 0;
-uint8_t currentAlarmSection = 0;//0-小时，1-分钟，2-秒
-uint8_t isSettingAlarm = 0;//0-未设置，1-设置中
 
 
 void longclick(){
@@ -250,37 +270,7 @@ void longclick(){
     timerCount = 0; // 计数值归零
     isCouting = false; // 计数器标志位置为false
     drawNumsByCount(timerCount); // 重新绘制计数区域，提示区域不用变
-  }/*else if(currentPage == ALARM){
-    //长按开始设置闹钟，第一次长按设置小时，第二次长按设置分钟，第三次长按设置秒，第四次长按设置完毕
-    //短按一次，当前设置的值加1，最大不超过24小时，60分钟，60秒
-    
-
-
-    if(isSettingAlarm == 0){
-      isSettingAlarm = 1;
-      alarmHour = 0;
-      alarmMinute = 0;
-      alarmSecond = 0;
-      currentAlarmSection = 0;
-    }else{
-      //设置完毕，开始修改闹钟时间，并用task来检查是否要闹钟
-      isSettingAlarm = 0;
-      //将设置的时间存入nvs
-      /*
-      Preferences preferences;
-      preferences.begin("alarm", false);
-      preferences.putUChar("hour", alarmHour);
-      preferences.putUChar("minute", alarmMinute);
-      preferences.putUChar("second", alarmSecond);
-      preferences.end();
-
-
-    }
-      drawAlarmPage();
-    //Serial.println("播放音乐");
-    sing_a_song();
-
-  }*/
+  }
 
 }
 ////////////////////////////////////////////////////////

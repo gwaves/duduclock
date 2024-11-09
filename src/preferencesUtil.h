@@ -7,5 +7,11 @@ void clearWiFiCity();
 void setInfo4Test();
 void getBackColor();
 void setBackColor(int backColor);
-
+void getNvsCity();
+void setNvsCity();
+void setNvsWifi();
+void getNvsWifi();
+void setNvsCityID();
+void getNvsCityID();
+void clearNvsWifi();
 #endif
