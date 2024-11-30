@@ -118,12 +118,13 @@ void handleConfigWifi(){
 //尝试连接默认的wifi，如果失败，返回，并进入正常wifi获取流程
 int connectDefaultWiFi(int timeOut_s){
   delay(1500); // 让“系统启动中”字样多显示一会
-  drawText("正在连接默认网络...");
+  //drawText("正在连接默认网络...");
+  log_i("正在连接默认网络,wifi stutas:%d",WiFi.status());
   int connectTime = 0; //用于连接计时，如果长时间连接不成功，复位设备
   pinMode(D4,OUTPUT);
-  ssid = "TOMMY-HOME";
+  ssid = "tommy-home";
   log_i("正在连接网络%s",ssid.c_str());
-  pass = "TOMMY-SSID";
+  pass = "tommy-ssid";
   
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
@@ -137,14 +138,15 @@ int connectDefaultWiFi(int timeOut_s){
       pass = "";
       return -1;
     }
-    return 0;
+    
   }
   digitalWrite(D4, LOW); // 连接成功后，将D4指示灯熄灭
   log_i("网络连接成功");
-  log_i("本地IP: %s",WiFi.localIP().toString().c_str());
+  log_i("本地IP: %d.%d.%d.%d",WiFi.localIP()[0],WiFi.localIP()[1],WiFi.localIP()[2],WiFi.localIP()[3]);
  // Serial.println("网络连接成功");
  // Serial.print("本地IP： ");
  // Serial.println(WiFi.localIP());
+  return 0;
 }
 // 连接WiFi
 void connectWiFi(int timeOut_s){
@@ -170,7 +172,7 @@ void connectWiFi(int timeOut_s){
   }
   digitalWrite(D4, LOW); // 连接成功后，将D4指示灯熄灭
   log_i("网络连接成功");
-  log_i("本地IP: %s",WiFi.localIP().toString().c_str());
+  //log_i("本地IP: %s",WiFi.localIP().toString().c_str());
  // Serial.println("网络连接成功");
  // Serial.print("本地IP： ");
  // Serial.println(WiFi.localIP());
@@ -212,7 +214,7 @@ void startAP(){
 void scanWiFi(){
   log_i("开始扫描WiFi");
   int n = WiFi.scanNetworks();
-  if (n){
+  if (n>=0 && n<=64){
     log_i("扫描到%d个WIFI",n);
     
     WifiNames = "";
@@ -229,11 +231,13 @@ void scanWiFi(){
         signalStrength = " (信号弱)";
       }
       WifiNames += "<option value='" + WiFi.SSID(i) + "'>" + WiFi.SSID(i) + signalStrength + "</option>";
-      // Serial.print("WiFi的名称(SSID):");
-      // Serial.println(WiFi.SSID(i));
+      Serial.print("WiFi的名称(SSID):");
+      Serial.println(WiFi.SSID(i));
     }
   }else{
-    log_e("没扫描到WIFI");
+    log_e("WIFI数量异常：%d",n);
+    sleep(1);
+    ESP.restart(); // 重启系统
   }
 }
 
@@ -242,6 +246,7 @@ int getMyPubIP(){
   HTTPClient http;
   http.setConnectTimeout(queryTimeout);
   http.begin(myipURL);
+  log_i("start to get my public IP:%s",myipURL.c_str());
   int httpCode = http.GET();
   if (httpCode== HTTP_CODE_OK)
   {
