@@ -56,41 +56,39 @@ void setup() {
     currentPage = WEATHER; // 将页面置为时钟页面
     // 连接WiFi,30秒超时重启并恢复出厂设置
     connectWiFi(30); 
-    
-    int ret = 0;
-    int retryCnt = 0;
-    getNvsCity();
-    if(city.equals("")){
+  }
+  int ret = 0;
+  int retryCnt = 0;
+  getNvsCity();
+  log_i("city:%s",city.c_str());
+  if(city.equals("")){
+    ret = getMyPubIP();
+    while(ret != 0 && retryCnt < 3){
       ret = getMyPubIP();
-      while(ret != 0 && retryCnt < 3){
-        ret = getMyPubIP();
-        if(ret == 0){
-          retryCnt = 0;
-          break;
-        }
-        retryCnt++;
+      if(ret == 0){
+        retryCnt = 0;
+        break;
       }
-      if(ret != 0 && retryCnt >= 3){
-        restartSystem("获取公网IP失败", true);
-      }
-
-      retryCnt = 0;
-      ret = getMyGeo();
-      while(ret != 0 && retryCnt < 3){
-        ret = getMyGeo();
-        if(ret == 0){
-          retryCnt = 0;
-          break;
-        }
-        retryCnt++;
-      }
-      if (ret != 0 && retryCnt >= 3)
-      {
-        restartSystem("获取城市信息失败", true);
-      }
-      
+      retryCnt++;
+    }
+    if(ret != 0 && retryCnt >= 3){
+      restartSystem("获取公网IP失败", true);
     }
 
+    retryCnt = 0;
+    ret = getMyGeo();
+    while(ret != 0 && retryCnt < 3){
+      ret = getMyGeo();
+      if(ret == 0){
+        retryCnt = 0;
+        break;
+      }
+      retryCnt++;
+    }
+    if (ret != 0 && retryCnt >= 3)
+    {
+      restartSystem("获取城市信息失败", true);
+    }
    
     // 查询是否有城市id，如果没有，就利用city和adm查询出城市id，并保存为location
     if(location.equals("")){
