@@ -20,7 +20,16 @@ void getNvsWifi(){
   pass = prefs.getString("pass", "");
   prefs.end();
 }
-
+void setNvsDefaultWifiStat(){
+  prefs.begin("clock");
+  prefs.putString("dft_wifi_exist", dft_wifi_exist);
+  prefs.end();
+}
+void getNvsDefaultWifiStat(){
+  prefs.begin("clock");
+  dft_wifi_exist = prefs.getString("dft_wifi_exist", "");
+  prefs.end();
+}
 void setNvsWifi(){
   prefs.begin("clock");
   prefs.putString("ssid", ssid);
@@ -76,6 +85,7 @@ void clearWiFiCity(){
   prefs.remove("adm");
   prefs.remove("location");
   prefs.remove("backColor");
+  prefs.remove("dft_wifi_exist");
   prefs.end();
 }
 

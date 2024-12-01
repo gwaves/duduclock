@@ -6,7 +6,7 @@
 #include "task.h"
 
 /**
-Dudu天气时钟  版本2.0
+TaoTao天气时钟  版本2.0
 
 本次更新内容：
 
@@ -26,10 +26,11 @@ int synDataRestartTime = 60; // 同步NTP时间和天气信息时，超过多少
 bool isCouting = false; // 计时器是否正在工作
 OneButton myButton(BUTTON, true);
 
+
 void setup() {
   Serial.begin(115200);
   log_v("start setup");
-  
+  int wifiInited = 0;
   // TFT初始化
   tftInit();
   
@@ -44,113 +45,97 @@ void setup() {
   getNvsWifi();
 // nvs中没有WiFi信息，进入配置页面
   if(ssid.length() == 0 || pass.length() == 0 ){
-    if(connectDefaultWiFi(10)==0){
-      //连接默认wifi成功，不进入配置页面，直接进入时钟页面
-      currentPage = WEATHER;
-      
-    }else{
+    getNvsDefaultWifiStat();
+    if(dft_wifi_exist.equals("")){
+      //尝试连接默认wifi
+      log_i("首次尝试连接默认wifi");
+      if(connectDefaultWiFi(2)==0){
+        //连接默认wifi成功，不进入配置页面，直接进入时钟页面
+        currentPage = WEATHER;  
+        dft_wifi_exist = "yes";    
+        setNvsDefaultWifiStat();
+        wifiInited = 1;
+        log_i("连接默认网络成功");
+      }else{
+        dft_wifi_exist = "no";
+        setNvsDefaultWifiStat(); 
+        log_i("连接默认网络失败");
+        restartSystem("连接默认网络失败,重启", true);
+        
+      }
+    }else{ //有默认wifi信息，但是连接失败，进入配置页面
       currentPage = SETTING; // 将页面置为配置页面
       wifiConfigBySoftAP(); // 开启SoftAP配置WiFi
     }
+    
   }else{ // 有WiFi信息，连接WiFi后进入时钟页面
     currentPage = WEATHER; // 将页面置为时钟页面
     // 连接WiFi,30秒超时重启并恢复出厂设置
     connectWiFi(30); 
+    wifiInited = 1;
   }
-  int ret = 0;
-  int retryCnt = 0;
-  getNvsCity();
-  log_i("city:%s",city.c_str());
-  log_i("location:%s",location.c_str());
-  if(city.equals("")){
-    ret = getMyPubIP();
-    while(ret != 0 && retryCnt < 3){
+  if(wifiInited == 1){  //wifi 未初始化的话，什么都不做，等配置wifi重启 
+    int ret = 0;
+    int retryCnt = 0;
+    getNvsCity();
+    log_i("city:%s",city.c_str());
+    log_i("location:%s",location.c_str());
+    if(city.equals("")){
       ret = getMyPubIP();
-      if(ret == 0){
-        retryCnt = 0;
-        break;
+      while(ret != 0 && retryCnt < 3){
+        ret = getMyPubIP();
+        if(ret == 0){
+          retryCnt = 0;
+          break;
+        }
+        retryCnt++;
       }
-      retryCnt++;
-    }
-    if(ret != 0 && retryCnt >= 3){
-      restartSystem("获取公网IP失败", true);
-    }
+      if(ret != 0 && retryCnt >= 3){
+        restartSystem("获取公网IP失败", true);
+      }
 
-    retryCnt = 0;
-    ret = getMyGeo();
-    while(ret != 0 && retryCnt < 3){
+      retryCnt = 0;
       ret = getMyGeo();
-      if(ret == 0){
-        retryCnt = 0;
-        break;
+      while(ret != 0 && retryCnt < 3){
+        ret = getMyGeo();
+        if(ret == 0){
+          retryCnt = 0;
+          break;
+        }
+        retryCnt++;
       }
-      retryCnt++;
+      if (ret != 0 && retryCnt >= 3)
+      {
+        restartSystem("获取城市信息失败", true);
+      }
+      
+      // 查询是否有城市id，如果没有，就利用city和adm查询出城市id，并保存为location
+      if(location.equals("")){
+        getCityID();
+      }
     }
-    if (ret != 0 && retryCnt >= 3)
-    {
-      restartSystem("获取城市信息失败", true);
-    }
-    
-    // 查询是否有城市id，如果没有，就利用city和adm查询出城市id，并保存为location
-    if(location.equals("")){
-      getCityID();
-    }
-  }
 
-  // 初始化一些列数据:NTP对时、实况天气、一周天气
-  initDatas();
-  tGetLocalTempCallback();//初始化本地温湿度
-  // 绘制实况天气页面
-  drawWeatherPage();
-  // 多任务启动
-  startRunner();
-  // 初始化定时器，让查询天气的多线程任务在一小时后再使能
-  startTimerQueryWeather();
-  // 初始化按键监控
-  myButton.attachClick(click);
-  myButton.attachDoubleClick(doubleclick);
-  myButton.attachLongPressStart(longclick);
-  myButton.setPressMs(2000); //设置长按时间
-  // myButton.setClickMs(300); //设置单击时间
-  myButton.setDebounceMs(10); //设置消抖时长 
+    // 初始化一些列数据:NTP对时、实况天气、一周天气
+    initDatas();
+    tGetLocalTempCallback();//初始化本地温湿度
+    // 绘制实况天气页面
+    drawWeatherPage();
+    // 多任务启动
+    startRunner();
+    // 初始化定时器，让查询天气的多线程任务在一小时后再使能
+    startTimerQueryWeather();
+    // 初始化按键监控
+    myButton.attachClick(click);
+    myButton.attachDoubleClick(doubleclick);
+    myButton.attachLongPressStart(longclick);
+    myButton.setPressMs(2000); //设置长按时间
+    // myButton.setClickMs(300); //设置单击时间
+    myButton.setDebounceMs(10); //设置消抖时长 
+    
+  }
   
 }
-/*
-const int tones[] = {
-    261, // C4
-    294, // D4
-    329, // E4
-    349, // F4
-    392, // G4
-    440, // A4
-};
-// 定义旋律（使用数组索引表示音符）
-const int melody[] = {0, 0, 4, 4, 5, 5, 4, -1,
-                      3, 3, 2, 2, 1, 1, 0, -1,
-                      4, 4, 3, 3, 2, 2, 1, -1,
-                      0, 0, 4, 4, 5, 5, 4, -1,
-                      3, 3, 2, 2, 1, 1, 0}; // -1表示停顿
 
-
-
-
-
-void sing_a_song()
-{
-  Serial.println("sing a song");
-  for (int i = 0; i < sizeof(melody) / sizeof(melody[0]); i++) 
-  {
-    int freq = (melody[i] == -1) ? 0 : tones[melody[i]];
-    if (freq > 0) {
-      tone(10, freq); // 播放对应频率的音调
-        delay(500); // 每个音符持续500毫秒
-    } else {
-      noTone(10); // 停止音调
-      delay(200); // 停顿200毫秒
-        }
-  }
-}
-*/
 void loop() {
   //Serial.print("start to run\r\n");
   //sing_a_song();

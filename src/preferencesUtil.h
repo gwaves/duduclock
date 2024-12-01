@@ -14,4 +14,6 @@ void getNvsWifi();
 void setNvsCityID();
 void getNvsCityID();
 void clearNvsWifi();
+void getNvsDefaultWifiStat();
+void setNvsDefaultWifiStat();
 #endif

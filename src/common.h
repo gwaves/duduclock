@@ -147,7 +147,7 @@ const String ROOT_HTML_PAGE1 PROGMEM = R"rawliteral(
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
     <link href='favicon.ico' rel='shortcut icon'>
-    <title>Dudu时钟配置页面</title>
+    <title>TaoTao时钟配置页面</title>
     <style type='text/css'>
         #titleDiv{
             margin-top: 20px;
