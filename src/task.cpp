@@ -844,9 +844,11 @@ void drawTitle(){
   clk.createSprite(240, 51);
   clk.setTextColor(penColor);
   clk.fillSprite(backFillColor);
-  clk.loadFont(name_42);
+  //clk.loadFont(name_42);
+  clk.loadFont(city_wea_24);
   clk.setTextDatum(CC_DATUM);
-  clk.drawString("Taotao Clock",120,35);
+  //clk.drawString("Taotao Clock",120,35);
+  clk.drawString("Make    KC    Great",120,35);
   clk.unloadFont();
   clk.drawFastHLine(0,48,240,penColor);
   clk.drawFastHLine(0,50,240,penColor);
