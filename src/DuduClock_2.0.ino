@@ -61,6 +61,7 @@ void setup() {
   int retryCnt = 0;
   getNvsCity();
   log_i("city:%s",city.c_str());
+  log_i("location:%s",location.c_str());
   if(city.equals("")){
     ret = getMyPubIP();
     while(ret != 0 && retryCnt < 3){
@@ -89,29 +90,30 @@ void setup() {
     {
       restartSystem("获取城市信息失败", true);
     }
-   
+    
     // 查询是否有城市id，如果没有，就利用city和adm查询出城市id，并保存为location
     if(location.equals("")){
       getCityID();
     }
-
-    // 初始化一些列数据:NTP对时、实况天气、一周天气
-    initDatas();
-    tGetLocalTempCallback();//初始化本地温湿度
-    // 绘制实况天气页面
-    drawWeatherPage();
-    // 多任务启动
-    startRunner();
-    // 初始化定时器，让查询天气的多线程任务在一小时后再使能
-    startTimerQueryWeather();
-    // 初始化按键监控
-    myButton.attachClick(click);
-    myButton.attachDoubleClick(doubleclick);
-    myButton.attachLongPressStart(longclick);
-    myButton.setPressMs(2000); //设置长按时间
-    // myButton.setClickMs(300); //设置单击时间
-    myButton.setDebounceMs(10); //设置消抖时长 
   }
+
+  // 初始化一些列数据:NTP对时、实况天气、一周天气
+  initDatas();
+  tGetLocalTempCallback();//初始化本地温湿度
+  // 绘制实况天气页面
+  drawWeatherPage();
+  // 多任务启动
+  startRunner();
+  // 初始化定时器，让查询天气的多线程任务在一小时后再使能
+  startTimerQueryWeather();
+  // 初始化按键监控
+  myButton.attachClick(click);
+  myButton.attachDoubleClick(doubleclick);
+  myButton.attachLongPressStart(longclick);
+  myButton.setPressMs(2000); //设置长按时间
+  // myButton.setClickMs(300); //设置单击时间
+  myButton.setDebounceMs(10); //设置消抖时长 
+  
 }
 /*
 const int tones[] = {
@@ -316,6 +318,7 @@ void initDatas(){
     sleep(1);
     getNowWeather();
   }
+  log_i("实况天气查询成功");
   //第一次查询空气质量,如果查询失败，就一直反复查询
   err_cnt = 0;
   getAir();
@@ -333,6 +336,7 @@ void initDatas(){
     sleep(1);
     getAir();
   }
+  log_i("空气质量查询成功");
   //第一次查询一周天气,如果查询失败，就一直反复查询
   err_cnt = 0;
   getFutureWeather();
@@ -350,6 +354,7 @@ void initDatas(){
     sleep(1); 
     getFutureWeather();
   }
+  log_i("一周天气查询成功");
   //结束循环显示提示文字的定时器
   timerEnd(timerShowTips);
   //将isStartQuery置为false,告诉系统，启动时查询天气已完成
