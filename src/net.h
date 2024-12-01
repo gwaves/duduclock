@@ -24,5 +24,6 @@ extern String city;
 extern String adm;
 extern String location;
 extern bool isStartQuery;
+extern String dft_wifi_exist;
 
 #endif

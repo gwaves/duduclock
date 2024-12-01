@@ -33,7 +33,7 @@ String city;  // 城市
 String adm; // 上级城市区划
 String location; // 城市ID
 String WifiNames; // 根据搜索到的wifi生成的option字符串
-
+String dft_wifi_exist; // 默认wifi是否存在NULL,or "yes" or "no"
 String myPubIP;
 // SoftAP相关
 const char *APssid = "TaoTaoClock";
@@ -118,7 +118,7 @@ void handleConfigWifi(){
 //尝试连接默认的wifi，如果失败，返回，并进入正常wifi获取流程
 int connectDefaultWiFi(int timeOut_s){
   delay(1500); // 让“系统启动中”字样多显示一会
-  //drawText("正在连接默认网络...");
+  drawText("正在连接默认网络...");
   log_i("正在连接默认网络,wifi stutas:%d",WiFi.status());
   int connectTime = 0; //用于连接计时，如果长时间连接不成功，复位设备
   pinMode(D4,OUTPUT);
@@ -141,6 +141,7 @@ int connectDefaultWiFi(int timeOut_s){
     
   }
   digitalWrite(D4, LOW); // 连接成功后，将D4指示灯熄灭
+  setNvsWifi(); // 将信息存入nvs中  
   log_i("网络连接成功");
   log_i("本地IP: %d.%d.%d.%d",WiFi.localIP()[0],WiFi.localIP()[1],WiFi.localIP()[2],WiFi.localIP()[3]);
  // Serial.println("网络连接成功");
@@ -258,7 +259,7 @@ int getMyPubIP(){
     DeserializationError error = deserializeJson(doc, payload); //反序列化JSON数据
     if(!error){ //检查反序列化是否成功
       myPubIP = doc["ip"].as<const char*>();
-      log_i("我的IP地址: %s",myPubIP);
+      log_i("我的IP地址: %s",myPubIP.c_str());
     }
     else{
       log_e("解析json数据失败");
