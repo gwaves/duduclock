@@ -43,7 +43,7 @@ void tGetLocalTempCallback();
 Scheduler runner;
 Task tAnim(30, TASK_FOREVER, &tAnimCallback, &runner, true); // 30毫秒播放一帧太空人动画
 Task tScrollText(5000, TASK_FOREVER, &tScrollTextCallback, &runner, true); // 5秒轮播一条天气情况
-Task tQueryWeather(60 * 60 * 1000, TASK_FOREVER, &tQueryWeatherCallback, &runner, false); // 60分钟查询一次实况天气情况
+Task tQueryWeather(8*60 * 60 * 1000, TASK_FOREVER, &tQueryWeatherCallback, &runner, false); // 8x60分钟查询一次实况天气情况
 Task tQueryFutureWeather(24*60 * 60 * 1000, TASK_FOREVER, &tQueryFutureWeatherCallback, &runner, false); // 24小时查询一次一周天气情况
 Task tCheckWiFi(5 * 60 * 1000, TASK_FOREVER, &tCheckWiFiCallback, &runner, true); // 5分钟检查一次网络状态
 Task tCheckTime(58 * 60 * 1000, TASK_FOREVER, &tCheckTimeCallback, &runner, true); // 58分钟进行一次NTP对时
