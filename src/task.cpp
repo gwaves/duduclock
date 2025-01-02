@@ -766,13 +766,13 @@ void drawTHProgressBar(int temperature, int humidity){
 
   //绘制室内温度信息
   tft.setTextColor(penColor,backFillColor);
-  if(temperature < 0){
+  if(DHT.temperature < 0){
     tft.drawNumber(DHT.temperature,35,245);
   }else{
     tft.drawNumber(DHT.temperature,57,245);
   } 
   tft.drawString("℃",79,245);
-  if(humidity >= 100){
+  if(DHT.humidity >= 100){
     tft.drawNumber(DHT.humidity,35,285);
   }else{
     tft.drawNumber(DHT.humidity,57,285);
