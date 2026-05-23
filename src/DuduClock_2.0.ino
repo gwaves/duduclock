@@ -128,9 +128,9 @@ void setup() {
     myButton.attachClick(click);
     myButton.attachDoubleClick(doubleclick);
     myButton.attachLongPressStart(longclick);
-    myButton.setPressMs(2000); //设置长按时间
-    // myButton.setClickMs(300); //设置单击时间
-    myButton.setDebounceMs(10); //设置消抖时长 
+    myButton.setPressMs(3000); //设置长按时间为3秒，与界面提示一致
+    myButton.setClickMs(600);  //设置单击判定时间为600ms，使双击更容易触发
+    myButton.setDebounceMs(50); //设置消抖时长为50ms 
     
   }
   
