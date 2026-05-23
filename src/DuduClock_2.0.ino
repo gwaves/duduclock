@@ -137,8 +137,6 @@ void setup() {
 }
 
 void loop() {
-  //Serial.print("start to run\r\n");
-  //sing_a_song();
   myButton.tick();
   drawTipsIfNeeded();
   switch(currentPage){
@@ -189,10 +187,8 @@ void loop() {
 void click(){
   if(currentPage == TIMER){
     if(!isCouting){
-      // Serial.println("开始计数");
       startMillis = millis();
     }else{
-      // Serial.println("停止计数");
       timerCount += millis() - startMillis;
       // 绘制计数器数字
       drawNumsByCount(timerCount);
