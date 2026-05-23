@@ -114,14 +114,14 @@ void drawTipsIfNeeded(){
 // 初始化定时器，让查询天气的多线程任务在一小时后再使能
 void startTimerQueryWeather(){
   timerQueryWeather = timerBegin(0, 80, true);// 1us计数一次
-  timerAttachInterrupt(timerQueryWeather, &onTimerQueryWeather, true); 
+  timerAttachInterrupt(timerQueryWeather, &onTimerQueryWeather, false);
   timerAlarmWrite(timerQueryWeather, 3600000000, false); // 执行完一次后就取消这个定时器 (3600000000)3600秒，即60分钟后使能
   timerAlarmEnable(timerQueryWeather); 
 }
 // 初始化定时器，在获取初始数据时，给用户提示
 void startTimerShowTips(){
   timerShowTips = timerBegin(1, 80, true);// 1us计数一次
-  timerAttachInterrupt(timerShowTips, &onTimerShowTips, true); 
+  timerAttachInterrupt(timerShowTips, &onTimerShowTips, false); 
   timerAlarmWrite(timerShowTips, 1000000, true); // 每秒执行一次
   timerAlarmEnable(timerShowTips); 
 }
