@@ -91,21 +91,6 @@ void handleConfigWifi(){
     server.send(200, "text/html", "<meta charset='UTF-8'>错误, 没有发现WiFi密码");
     return;
   }
-  //判断是否有city名称
-/*  if (server.hasArg("city")){
-    Serial.print("获得城市:");
-    city = server.arg("city");
-    Serial.println(city);
-  }else{
-    Serial.println("错误, 没有发现城市名称");
-    server.send(200, "text/html", "<meta charset='UTF-8'>错误, 没有发现城市名称");
-    return;
-  }
-
-  Serial.print("获得上级区划:");
-  adm = server.arg("adm");
-  Serial.println(adm);
-*/
   // 将信息存入nvs中
   setNvsWifi();
   // 获得了所需要的一切信息，给客户端回复
@@ -141,9 +126,6 @@ int connectDefaultWiFi(int timeOut_s){
   setNvsWifi(); // 将信息存入nvs中  
   log_i("网络连接成功");
   log_i("本地IP: %d.%d.%d.%d",WiFi.localIP()[0],WiFi.localIP()[1],WiFi.localIP()[2],WiFi.localIP()[3]);
- // Serial.println("网络连接成功");
- // Serial.print("本地IP： ");
- // Serial.println(WiFi.localIP());
   return 0;
 }
 // 连接WiFi
@@ -162,7 +144,6 @@ void connectWiFi(int timeOut_s){
     delay(500);
     connectTime++;
     if (connectTime > 2 * timeOut_s){ //长时间连接不上，清除nvs中保存的网络数据，并重启系统
-      //Serial.println("网络连接失败,即将重新开始配置网络...");
       log_e("网络连接失败");
       clearNvsWifi();
       restartSystem("网络连接失败", false);
@@ -170,10 +151,6 @@ void connectWiFi(int timeOut_s){
   }
   digitalWrite(D4, LOW); // 连接成功后，将D4指示灯熄灭
   log_i("网络连接成功");
-  //log_i("本地IP: %s",WiFi.localIP().toString().c_str());
- // Serial.println("网络连接成功");
- // Serial.print("本地IP： ");
- // Serial.println(WiFi.localIP());
 }
 // 检查WiFi连接状态，如果断开了，重新连接
 void checkWiFiStatus(){
@@ -436,13 +413,11 @@ void getNowWeather(){
   httpClient.begin(url);
   //启动连接并发送HTTP请求
   int httpCode = httpClient.GET();
-  // Serial.println(ESP.getFreeHeap());
   log_i("正在获取天气数据");
   //如果服务器响应OK则从服务器获取响应体信息并通过串口输出
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
     int len = httpClient.getSize();
-    //uint8_t buff[2048] = { 0 };
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
     uint8_t* outbuf = nullptr;
     if (buff == nullptr) {
@@ -459,13 +434,10 @@ void getNowWeather(){
     }
     WiFiClient *stream = httpClient.getStreamPtr();
     while (httpClient.connected() && (len > 0 || len == -1)) {
-      size_t size = stream->available();  // 还剩下多少数据没有读完？
-      // Serial.println(size);
+      size_t size = stream->available();
       if (size) {
         size_t realsize = ((size > HTTP_BUFF_SIZE) ? HTTP_BUFF_SIZE : size);
-        // Serial.println(realsize);
         size_t readBytesSize = stream->readBytes(buff, realsize);
-        // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
 
         uint32_t outprintsize = 0;
@@ -477,7 +449,7 @@ void getNowWeather(){
           data += (char)outbuf[i];
         }
 
-        log_v(data.c_str());
+        log_v("%s", data.c_str());
       }
       delay(1);
     }
@@ -534,7 +506,6 @@ void getAir(){
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
     int len = httpClient.getSize();
-    //uint8_t buff[2048] = { 0 };
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
     uint8_t* outbuf = nullptr;
     if (buff == nullptr) {
@@ -551,13 +522,10 @@ void getAir(){
     }
     WiFiClient *stream = httpClient.getStreamPtr();
     while (httpClient.connected() && (len > 0 || len == -1)) {
-      size_t size = stream->available();  // 还剩下多少数据没有读完？
-      // Serial.println(size);
+      size_t size = stream->available();
       if (size) {
         size_t realsize = ((size > HTTP_BUFF_SIZE) ? HTTP_BUFF_SIZE : size);
-        // Serial.println(realsize);
         size_t readBytesSize = stream->readBytes(buff, realsize);
-        // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
 
         uint32_t outprintsize = 0;
@@ -640,7 +608,6 @@ void getFutureWeather(){
 
     int len = httpClient.getSize();
     log_v("HTTP ok, len: %d\n", len);
-    //uint8_t buff[2048] = { 0 };
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
     uint8_t* outbuf = nullptr;
     if(buff == nullptr){
@@ -657,13 +624,11 @@ void getFutureWeather(){
     }
     WiFiClient *stream = httpClient.getStreamPtr();
     while (httpClient.connected() && (len > 0 || len == -1)) {
-      size_t size = stream->available();  // 还剩下多少数据没有读完？
+      size_t size = stream->available();
       log_v(size);
       if (size) {
         size_t realsize = ((size > HTTP_BUFF_SIZE) ? HTTP_BUFF_SIZE : size);
-        // Serial.println(realsize);
         size_t readBytesSize = stream->readBytes(buff, realsize);
-        // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
 
         uint32_t outprintsize = 0;
@@ -674,8 +639,6 @@ void getFutureWeather(){
         for (int i = 0; i < outprintsize; i++) {
           data += (char)outbuf[i];
         }
-
-//      Serial.println(data);
       }
       delay(1);
     }
@@ -699,7 +662,6 @@ void getFutureWeather(){
       log_v("deserializeJson: %d\n", error);
       if(!error){ //检查反序列化是否成功
         //读取json节点
-        //serializeJsonPretty(*doc, Serial);
         size_t serializedSize = measureJson(*doc);
         log_v("反序列化成功,data_len: %d\n",serializedSize);
         String code = (*doc)["code"].as<const char*>();
@@ -788,13 +750,6 @@ void restartSystem(String msg, bool endTips){
     draw2LineText(msg,text);
     delay(1000);
   }
-  /*
-  while(1)
-  {
-    sleep(2);
-    Serial.println("请重启系统");
-  }
-  */
   ESP.restart();
 }
 
