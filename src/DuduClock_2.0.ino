@@ -344,6 +344,7 @@ void initDatas(){
   //结束循环显示提示文字的定时器
   timerEnd(timerShowTips);
   timerShowTips = NULL;
+  gTipsNeedUpdate = false; // 清除可能残留的定时器中断标志，防止启动后tips覆盖主界面
   //将isStartQuery置为false,告诉系统，启动时查询天气已完成
   isStartQuery = false;
 }
