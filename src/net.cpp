@@ -5,10 +5,10 @@
 #include <esp32-hal-log.h>
 #include "ArduinoZlib.h"
 #include "common.h"
-#include "PreferencesUtil.h"
+#include "preferencesUtil.h"
 #include "tftUtil.h"
 #include "task.h"
-#include "arduino.h"
+#include "Arduino.h"
 
 #define HTTP_BUFF_SIZE 2048
 
@@ -282,38 +282,43 @@ int getMyPubIP(){
 //请求GEOIP库获得城市信息
 int getMyGeo(){
   HTTPClient http;
-  //请求myipurl并解析json获得ip地址
   http.setConnectTimeout(queryTimeout*5);
-  //请求geoip库获得城市信息
-  http.begin(myIPGeoURL + myPubIP + myIPGeoURL2);
+  // 使用 ipinfo.io 获取地理位置（更稳定）
+  http.begin("http://ipinfo.io/json");
   int httpCode = http.GET();
   if (httpCode== HTTP_CODE_OK)
   {
-    /* code */
     String payload = http.getString();
     log_d("%s",payload);
-    //解析json数据
-    StaticJsonDocument<2048> doc; //use static memory allocation
-    DeserializationError error = deserializeJson(doc, payload); //反序列化JSON数据
-    if(!error){ //检查反序列化是否成功
-      city = doc["data"][3].as<const char*>();
-      adm = doc["data"][2].as<const char*>();
-      adm += "市";
+    StaticJsonDocument<512> doc;
+    DeserializationError error = deserializeJson(doc, payload);
+    if(!error){
+      const char* cityPtr = doc["city"].as<const char*>();
+      const char* regionPtr = doc["region"].as<const char*>();
+      if(cityPtr == nullptr || strlen(cityPtr) == 0){
+        log_e("ipinfo.io 返回城市名为空，使用默认城市北京");
+        city = "Beijing";
+        adm = "Beijing";
+      } else {
+        city = cityPtr;
+        adm = regionPtr ? regionPtr : cityPtr;
+      }
       setNvsCity();
       log_i("我的城市:%s ",city.c_str());
       log_i("我的上级区划:%s ",adm.c_str());
     }
     else{
-      log_e("解析json数据失败");
-      return -1;      
+      log_e("解析 ipinfo.io 数据失败，使用默认城市北京");
+      city = "Beijing";
+      adm = "Beijing";
+      setNvsCity();
     }
-    
   }
-  else{// http code 不是200
-    log_e("获取城市错误：");
-    log_e("HTTP Code: %d", httpCode);
-    http.end();
-    return -1;
+  else{
+    log_e("获取城市错误，HTTP Code: %d，使用默认城市北京", httpCode);
+    city = "Beijing";
+    adm = "Beijing";
+    setNvsCity();
   }
   http.end();
   return 0;
@@ -321,6 +326,11 @@ int getMyGeo(){
 
 // 查询城市id
 int getCityID(){
+  data = "";
+  if(city.isEmpty()){
+    log_e("城市名为空，跳过获取城市ID");
+    return -1;
+  }
   bool flag = false; // 是否成功获取到城市id的标志
   String url = cityURL + KEY + "&location=" + urlEncode(city) + "&adm=" + urlEncode(adm);
   
@@ -335,9 +345,10 @@ int getCityID(){
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
     int len = httpClient.getSize();
-    if(len >= 4096)
+    if(len >= 4096 || len <= 0)
     {
-      log_e("数据流太大，无法处理");
+      log_e("数据流大小异常: %d", len);
+      httpClient.end();
       return -1;
     }
    
@@ -380,7 +391,7 @@ int getCityID(){
     free(outbuf);
     // 解压完，转换json数据
     //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
-    DynamicJsonDocument *doc= new DynamicJsonDocument(2048); //use dynamic memory allocation
+    DynamicJsonDocument *doc= new DynamicJsonDocument(8192); //use dynamic memory allocation
     DeserializationError error = deserializeJson(*doc, data); //反序列化JSON数据
     if(!error){ //检查反序列化是否成功
       //读取json节点
@@ -395,7 +406,7 @@ int getCityID(){
         setNvsCityID();
       }
     } else {
-      log_e("JSON反序列化失败");
+      log_e("JSON反序列化失败: %s", error.c_str());
     }
     delete doc;//销毁doc  
   } else {
@@ -495,7 +506,7 @@ void getNowWeather(){
     delete doc;//销毁doc
   }
   if(!queryNowWeatherSuccess){
-    log_e("请求实时天气错误：%s",httpCode);
+    log_e("请求实时天气错误：%d",httpCode);
   }
   //关闭与服务器连接
   httpClient.end();
@@ -552,13 +563,23 @@ void getAir(){
     free(buff);
     free(outbuf);
     // 解压完，转换json数据
-    DynamicJsonDocument *doc= new DynamicJsonDocument(2048); //use dynamic memory allocation
+    StaticJsonDocument<256> jsonFilter;
+    jsonFilter["code"] = true;
+    jsonFilter["now"]["aqi"] = true;
+    jsonFilter["now"]["pm10"] = true;
+    jsonFilter["now"]["pm2p5"] = true;
+    jsonFilter["now"]["no2"] = true;
+    jsonFilter["now"]["so2"] = true;
+    jsonFilter["now"]["co"] = true;
+    jsonFilter["now"]["o3"] = true;
+
+    DynamicJsonDocument *doc= new DynamicJsonDocument(1024); //use dynamic memory allocation
     if(doc == nullptr){
       log_e("getAir内存分配失败");
       return;
     }
     //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
-    DeserializationError error = deserializeJson(*doc, data); //反序列化JSON数据
+    DeserializationError error = deserializeJson(*doc, data, DeserializationOption::Filter(jsonFilter)); //反序列化JSON数据
     if(!error){ //检查反序列化是否成功
       //读取json节点
       String code = (*doc)["code"].as<const char*>();
@@ -572,13 +593,19 @@ void getAir(){
         nowWeather.so2 = (*doc)["now"]["so2"].as<const char*>();
         nowWeather.co = (*doc)["now"]["co"].as<const char*>();
         nowWeather.o3 = (*doc)["now"]["o3"].as<const char*>();
-        log_i("当前天气获取成功");
+        log_i("空气质量获取成功");
+      } else {
+        log_e("空气质量API业务码错误: %s", code.c_str());
+        log_e("响应: %s", data.c_str());
       }
-    }  
+    } else {
+      log_e("空气质量JSON解析失败: %s", error.c_str());
+      log_e("响应: %s", data.c_str());
+    }
     delete doc;//销毁doc
   } 
   if(!queryAirSuccess){
-    log_e("请求空气质量错误：%s",httpCode);
+    log_e("请求空气质量错误：%d",httpCode);
   }
   //关闭与服务器连接
   httpClient.end();
@@ -734,9 +761,10 @@ void getNTPTime(){
 // 重启系统
 // bool endTips  是否需要把“同步天气数据”文字的定时器任务取消
 void restartSystem(String msg, bool endTips){
-  if(endTips){
+  if(endTips && timerShowTips != NULL){
     //结束循环显示提示文字的定时器
     timerEnd(timerShowTips);
+    timerShowTips = NULL;
   }
   reflashTFT();
   for(int i = 3; i > 0; i--){
