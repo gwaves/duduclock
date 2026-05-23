@@ -14,6 +14,8 @@ extern NowWeather nowWeather;
 extern FutureWeather futureWeather;
 extern enum CurrentPage currentPage;
 extern unsigned int timerCount;
+extern volatile bool gTipsNeedUpdate;
+void drawTipsIfNeeded();
 void drawWeatherContent();
 void drawFutureWeatherPage();
 void drawWeatherPage();

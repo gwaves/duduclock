@@ -46,9 +46,6 @@ int queryTimeout = 6000;
 // 是否是刚启动时查询天气
 bool isStartQuery = true; 
 // 天气接口相关
-static HTTPClient httpClient;
-String data = "";
-uint8_t *outbuf;
 
 // 开启SoftAP进行配网
 void wifiConfigBySoftAP(){
@@ -180,8 +177,8 @@ void connectWiFi(int timeOut_s){
 }
 // 检查WiFi连接状态，如果断开了，重新连接
 void checkWiFiStatus(){
-  if(WiFi.status() != WL_CONNECTED){ // 网络断开了，进行重连
-    
+  wl_status_t status = WiFi.status();
+  if(status == WL_DISCONNECTED || status == WL_NO_SSID_AVAIL || status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST){
     log_e("网络断开，即将重新连接...");
     WiFi.begin(ssid, pass);
   }
@@ -237,8 +234,8 @@ void scanWiFi(){
     }
   }else{
     log_e("WIFI数量异常：%d",n);
-    sleep(1);
-    ESP.restart(); // 重启系统
+    delay(1000);
+    // 不直接重启，让调用者处理异常
   }
 }
 
@@ -284,7 +281,7 @@ int getMyGeo(){
   HTTPClient http;
   http.setConnectTimeout(queryTimeout*5);
   // 使用 ipinfo.io 获取地理位置（更稳定）
-  http.begin("http://ipinfo.io/json");
+  http.begin("https://ipinfo.io/json");
   int httpCode = http.GET();
   if (httpCode== HTTP_CODE_OK)
   {
@@ -326,21 +323,22 @@ int getMyGeo(){
 
 // 查询城市id
 int getCityID(){
-  data = "";
+  String data = "";
   if(city.isEmpty()){
     log_e("城市名为空，跳过获取城市ID");
     return -1;
   }
   bool flag = false; // 是否成功获取到城市id的标志
   String url = cityURL + KEY + "&location=" + urlEncode(city) + "&adm=" + urlEncode(adm);
-  
+
   log_d("url: %s",url.c_str());
+  HTTPClient httpClient;
   httpClient.setConnectTimeout(queryTimeout * 5);
   httpClient.begin(url);
   //启动连接并发送HTTP请求
   int httpCode = httpClient.GET();
   log_i("正在获取城市id");
-  
+
   // 处理服务器答复
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
@@ -351,32 +349,34 @@ int getCityID(){
       httpClient.end();
       return -1;
     }
-   
+
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * len); // 动态分配buff
+    uint8_t* outbuf = nullptr;
     if (buff == nullptr) {
       log_e("getCityID内存分配失败");
+      httpClient.end();
       return -1;
     }
     outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120); // 动态分配outbuf,用于解压
     if (outbuf == nullptr) {
       log_e("outbuf内存分配失败");
       free(buff);
+      httpClient.end();
       return -1;
     }
     WiFiClient *stream = httpClient.getStreamPtr();
     int counter = 0; // Counter to reduce frequency of serial prints
     while (httpClient.connected() && (len > 0 || len == -1)) {
       size_t size = stream->available();  // 还剩下多少数据没有读完？
-      // Serial.println(size);
       if (size) {
         size_t realsize = ((size > HTTP_BUFF_SIZE) ? HTTP_BUFF_SIZE : size);
-        // Serial.println(realsize);
         size_t readBytesSize = stream->readBytes(buff, realsize);
-        // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
         uint32_t outprintsize = 0;
         int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 5120, outprintsize);
-        // Serial.write(outbuf, outprintsize);
+        if (result != 0) {
+          log_v("getCityID解压中间状态: %d", result);
+        }
         for (int i = 0; i < outprintsize; i++) {
           data += (char)outbuf[i];
         }
@@ -390,47 +390,48 @@ int getCityID(){
     free(buff);
     free(outbuf);
     // 解压完，转换json数据
-    //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
     DynamicJsonDocument *doc= new DynamicJsonDocument(8192); //use dynamic memory allocation
-    DeserializationError error = deserializeJson(*doc, data); //反序列化JSON数据
-    if(!error){ //检查反序列化是否成功
-      //读取json节点
-      String code = (*doc)["code"].as<const char*>();
-      if(code.equals("200")){
-        flag = true;
-        // 多结果的情况下，取第一个
-        //city = (*doc)["location"][0]["name"].as<const char*>();
-        location = (*doc)["location"][0]["id"].as<const char*>();
-        log_i("城市id :%s",location);
-        // 将信息存入nvs中
-        setNvsCityID();
+    if(doc != nullptr){
+      DeserializationError error = deserializeJson(*doc, data); //反序列化JSON数据
+      if(!error){ //检查反序列化是否成功
+        //读取json节点
+        String code = (*doc)["code"].as<const char*>();
+        if(code.equals("200")){
+          flag = true;
+          // 多结果的情况下，取第一个
+          location = (*doc)["location"][0]["id"].as<const char*>();
+          log_i("城市id :%s",location);
+          // 将信息存入nvs中
+          setNvsCityID();
+        }
+      } else {
+        log_e("JSON反序列化失败: %s", error.c_str());
       }
+      delete doc;//销毁doc
     } else {
-      log_e("JSON反序列化失败: %s", error.c_str());
+      log_e("getCityID doc内存分配失败");
     }
-    delete doc;//销毁doc  
   } else {
-    log_e("HTTP请求失败，错误代码：%s",httpCode);
-    
+    log_e("HTTP请求失败，错误代码：%d",httpCode);
   }
+  httpClient.end();
+
   if(!flag){
     log_e("获取城市id错误：%d",httpCode);
-    
     log_e("城市错误，即将重启系统");
     clearWiFiCity(); // 清除配置好的信息
     restartSystem("城市名称无效", false);
   }
   log_i("获取城市ID成功");
-  //关闭与服务器连接
-  httpClient.end();
   return 0;
 }
 
 // 查询实时天气
 void getNowWeather(){
-  data = "";
+  String data = "";
   queryNowWeatherSuccess = false; // 先置为false
   String url = nowURL + KEY + "&location=" + location;
+  HTTPClient httpClient;
   httpClient.setConnectTimeout(queryTimeout);
   httpClient.begin(url);
   //启动连接并发送HTTP请求
@@ -443,15 +444,17 @@ void getNowWeather(){
     int len = httpClient.getSize();
     //uint8_t buff[2048] = { 0 };
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
+    uint8_t* outbuf = nullptr;
     if (buff == nullptr) {
       log_e("getNowWeather内存分配失败");
+      httpClient.end();
       return;
     }
     outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
     if(outbuf == nullptr){
       log_e("outbuf内存分配失败");
-      httpClient.end();
       free(buff);
+      httpClient.end();
       return;
     }
     WiFiClient *stream = httpClient.getStreamPtr();
@@ -464,14 +467,16 @@ void getNowWeather(){
         size_t readBytesSize = stream->readBytes(buff, realsize);
         // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
-        
+
         uint32_t outprintsize = 0;
         int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 5120, outprintsize);
-        // Serial.write(outbuf, outprintsize);
+        if (result != 0) {
+          log_v("getNowWeather解压中间状态: %d", result);
+        }
         for (int i = 0; i < outprintsize; i++) {
           data += (char)outbuf[i];
         }
-        
+
         log_v(data.c_str());
       }
       delay(1);
@@ -480,30 +485,33 @@ void getNowWeather(){
     free(outbuf);
     // 解压完，转换json数据
 
-    //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
     DynamicJsonDocument *doc= new DynamicJsonDocument(2048); //use dynamic memory allocation
-    DeserializationError error = deserializeJson(*doc, data); //反序列化JSON数据
-    if(!error){ //检查反序列化是否成功
-      //读取json节点
-      String code = (*doc)["code"].as<const char*>();
-      if(code.equals("200")){
-        queryNowWeatherSuccess = true;       
+    if(doc != nullptr){
+      DeserializationError error = deserializeJson(*doc, data); //反序列化JSON数据
+      if(!error){ //检查反序列化是否成功
         //读取json节点
-        nowWeather.text = (*doc)["now"]["text"].as<const char*>();
-        nowWeather.icon = (*doc)["now"]["icon"].as<int>();
-        nowWeather.temp = (*doc)["now"]["temp"].as<int>();
-        String feelsLike = (*doc)["now"]["feelsLike"]; // 体感温度
-        nowWeather.feelsLike = "体感温度" + feelsLike + "℃";
-        String windDir = (*doc)["now"]["windDir"];
-        String windScale = (*doc)["now"]["windScale"];
-        nowWeather.win = windDir + windScale + "级";
-        nowWeather.humidity = (*doc)["now"]["humidity"].as<int>();
-        String vis = (*doc)["now"]["vis"];
-        nowWeather.vis = "能见度" + vis + " KM";
-        log_i("当前天气获取成功");
+        String code = (*doc)["code"].as<const char*>();
+        if(code.equals("200")){
+          queryNowWeatherSuccess = true;
+          //读取json节点
+          nowWeather.text = (*doc)["now"]["text"].as<const char*>();
+          nowWeather.icon = (*doc)["now"]["icon"].as<int>();
+          nowWeather.temp = (*doc)["now"]["temp"].as<int>();
+          String feelsLike = (*doc)["now"]["feelsLike"]; // 体感温度
+          nowWeather.feelsLike = "体感温度" + feelsLike + "℃";
+          String windDir = (*doc)["now"]["windDir"];
+          String windScale = (*doc)["now"]["windScale"];
+          nowWeather.win = windDir + windScale + "级";
+          nowWeather.humidity = (*doc)["now"]["humidity"].as<int>();
+          String vis = (*doc)["now"]["vis"];
+          nowWeather.vis = "能见度" + vis + " KM";
+          log_i("当前天气获取成功");
+        }
       }
-    }  
-    delete doc;//销毁doc
+      delete doc;//销毁doc
+    } else {
+      log_e("getNowWeather doc内存分配失败");
+    }
   }
   if(!queryNowWeatherSuccess){
     log_e("请求实时天气错误：%d",httpCode);
@@ -513,9 +521,10 @@ void getNowWeather(){
 }
 // 查询空气质量
 void getAir(){
-  data = "";
+  String data = "";
   queryAirSuccess = false; // 先置为false
   String url = airURL + KEY + "&location=" + location;
+  HTTPClient httpClient;
   httpClient.setConnectTimeout(queryTimeout);
   httpClient.begin(url);
   //启动连接并发送HTTP请求
@@ -527,15 +536,17 @@ void getAir(){
     int len = httpClient.getSize();
     //uint8_t buff[2048] = { 0 };
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
+    uint8_t* outbuf = nullptr;
     if (buff == nullptr) {
       log_e("getair内存分配失败");
+      httpClient.end();
       return;
     }
     outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 20480);
     if(outbuf == nullptr){
       log_e("outbuf内存分配失败");
-      httpClient.end();
       free(buff);
+      httpClient.end();
       return;
     }
     WiFiClient *stream = httpClient.getStreamPtr();
@@ -548,14 +559,16 @@ void getAir(){
         size_t readBytesSize = stream->readBytes(buff, realsize);
         // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
-        
+
         uint32_t outprintsize = 0;
         int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 20480, outprintsize);
-        // Serial.write(outbuf, outprintsize);
+        if (result != 0) {
+          log_v("getAir解压中间状态: %d", result);
+        }
         for (int i = 0; i < outprintsize; i++) {
           data += (char)outbuf[i];
         }
-        
+
         log_v("%s",data.c_str());
       }
       delay(1);
@@ -574,36 +587,35 @@ void getAir(){
     jsonFilter["now"]["o3"] = true;
 
     DynamicJsonDocument *doc= new DynamicJsonDocument(1024); //use dynamic memory allocation
-    if(doc == nullptr){
-      log_e("getAir内存分配失败");
-      return;
-    }
-    //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
-    DeserializationError error = deserializeJson(*doc, data, DeserializationOption::Filter(jsonFilter)); //反序列化JSON数据
-    if(!error){ //检查反序列化是否成功
-      //读取json节点
-      String code = (*doc)["code"].as<const char*>();
-      if(code.equals("200")){
-        queryAirSuccess = true;
+    if(doc != nullptr){
+      DeserializationError error = deserializeJson(*doc, data, DeserializationOption::Filter(jsonFilter)); //反序列化JSON数据
+      if(!error){ //检查反序列化是否成功
         //读取json节点
-        nowWeather.air = (*doc)["now"]["aqi"].as<int>();
-        nowWeather.pm10 = (*doc)["now"]["pm10"].as<const char*>();
-        nowWeather.pm2p5 = (*doc)["now"]["pm2p5"].as<const char*>();
-        nowWeather.no2 = (*doc)["now"]["no2"].as<const char*>();
-        nowWeather.so2 = (*doc)["now"]["so2"].as<const char*>();
-        nowWeather.co = (*doc)["now"]["co"].as<const char*>();
-        nowWeather.o3 = (*doc)["now"]["o3"].as<const char*>();
-        log_i("空气质量获取成功");
+        String code = (*doc)["code"].as<const char*>();
+        if(code.equals("200")){
+          queryAirSuccess = true;
+          //读取json节点
+          nowWeather.air = (*doc)["now"]["aqi"].as<int>();
+          nowWeather.pm10 = (*doc)["now"]["pm10"].as<const char*>();
+          nowWeather.pm2p5 = (*doc)["now"]["pm2p5"].as<const char*>();
+          nowWeather.no2 = (*doc)["now"]["no2"].as<const char*>();
+          nowWeather.so2 = (*doc)["now"]["so2"].as<const char*>();
+          nowWeather.co = (*doc)["now"]["co"].as<const char*>();
+          nowWeather.o3 = (*doc)["now"]["o3"].as<const char*>();
+          log_i("空气质量获取成功");
+        } else {
+          log_e("空气质量API业务码错误: %s", code.c_str());
+          log_e("响应: %s", data.c_str());
+        }
       } else {
-        log_e("空气质量API业务码错误: %s", code.c_str());
+        log_e("空气质量JSON解析失败: %s", error.c_str());
         log_e("响应: %s", data.c_str());
       }
+      delete doc;//销毁doc
     } else {
-      log_e("空气质量JSON解析失败: %s", error.c_str());
-      log_e("响应: %s", data.c_str());
+      log_e("getAir doc内存分配失败");
     }
-    delete doc;//销毁doc
-  } 
+  }
   if(!queryAirSuccess){
     log_e("请求空气质量错误：%d",httpCode);
   }
@@ -612,10 +624,11 @@ void getAir(){
 }
 // 查询未来天气，经过实况天气一环，城市名称肯定是合法的，所以无需再检验
 void getFutureWeather(){
-  data = "";
+  String data = "";
   queryFutureWeatherSuccess = false; // 先置为false
   String url = futureURL + KEY + "&location=" + location;
   log_v("查询未来天气URL：%s",url);
+  HTTPClient httpClient;
   httpClient.setConnectTimeout(queryTimeout);
   httpClient.begin(url);
   //启动连接并发送HTTP请求
@@ -624,20 +637,22 @@ void getFutureWeather(){
   //如果服务器响应OK则从服务器获取响应体信息并通过串口输出
   if (httpCode == HTTP_CODE_OK) {
     // 解压Gzip数据流
-    
+
     int len = httpClient.getSize();
     log_v("HTTP ok, len: %d\n", len);
     //uint8_t buff[2048] = { 0 };
     uint8_t* buff = (uint8_t*)malloc(sizeof(uint8_t) * HTTP_BUFF_SIZE); // 动态分配buff
+    uint8_t* outbuf = nullptr;
     if(buff == nullptr){
       log_e("getFutureWeather内存分配失败");
+      httpClient.end();
       return;
     }
     outbuf = (uint8_t *)malloc(sizeof(uint8_t) * 5120);
     if(outbuf == nullptr){
       log_e("outbuf内存分配失败");
-      httpClient.end();
       free(buff);
+      httpClient.end();
       return;
     }
     WiFiClient *stream = httpClient.getStreamPtr();
@@ -650,21 +665,23 @@ void getFutureWeather(){
         size_t readBytesSize = stream->readBytes(buff, realsize);
         // Serial.write(buff,readBytesSize);
         if (len > 0) len -= readBytesSize;
-        
+
         uint32_t outprintsize = 0;
         int result = ArduinoZlib::libmpq__decompress_zlib(buff, readBytesSize, outbuf, 5120, outprintsize);
-        //Serial.write(outbuf, outprintsize);
+        if (result != 0) {
+          log_v("getFutureWeather解压中间状态: %d", result);
+        }
         for (int i = 0; i < outprintsize; i++) {
           data += (char)outbuf[i];
         }
-        
+
 //      Serial.println(data);
       }
       delay(1);
     }
     free(buff);
     free(outbuf);
-   
+
     // 解压完，转换json数据
     //设置一个json过滤器以减少实际的解析存储空间
     StaticJsonDocument<256> jsonFilter;
@@ -676,73 +693,71 @@ void getFutureWeather(){
     jsonFilter["daily"][0]["tempMin"] = true;
 
     DynamicJsonDocument *doc = new DynamicJsonDocument(2048); //use dynamic memory allocation
-    if(doc == nullptr){
-      Serial.println("getFutureWeather内存分配失败");
-      return;
-    }
-    
-    //StaticJsonDocument<2048> doc; //声明一个静态JsonDocument对象
-    DeserializationError error = deserializeJson(*doc, data,DeserializationOption::Filter(jsonFilter)); //反序列化JSON数据
-    
-    log_v("deserializeJson: %d\n", error);
-    if(!error){ //检查反序列化是否成功
-      //读取json节点
-      //serializeJsonPretty(*doc, Serial);
-      size_t serializedSize = measureJson(*doc);
-      log_v("反序列化成功,data_len: %d\n",serializedSize);
-      String code = (*doc)["code"].as<const char*>();
-      
-      if(code.equals("200")){
-        
-        queryFutureWeatherSuccess = true;
+    if(doc != nullptr){
+      DeserializationError error = deserializeJson(*doc, data,DeserializationOption::Filter(jsonFilter)); //反序列化JSON数据
+
+      log_v("deserializeJson: %d\n", error);
+      if(!error){ //检查反序列化是否成功
         //读取json节点
-        futureWeather.day0wea = (*doc)["daily"][0]["textDay"].as<const char*>();
-        futureWeather.day0wea_img = (*doc)["daily"][0]["iconDay"].as<int>();
-        futureWeather.day0date = (*doc)["daily"][0]["fxDate"].as<const char*>();
-        futureWeather.day0tem_day = (*doc)["daily"][0]["tempMax"].as<int>();
-        futureWeather.day0tem_night = (*doc)["daily"][0]["tempMin"].as<int>();
+        //serializeJsonPretty(*doc, Serial);
+        size_t serializedSize = measureJson(*doc);
+        log_v("反序列化成功,data_len: %d\n",serializedSize);
+        String code = (*doc)["code"].as<const char*>();
 
-        futureWeather.day1wea = (*doc)["daily"][1]["textDay"].as<const char*>();
-        futureWeather.day1wea_img = (*doc)["daily"][1]["iconDay"].as<int>();
-        futureWeather.day1date = (*doc)["daily"][1]["fxDate"].as<const char*>();
-        futureWeather.day1tem_day = (*doc)["daily"][1]["tempMax"].as<int>();
-        futureWeather.day1tem_night = (*doc)["daily"][1]["tempMin"].as<int>();
+        if(code.equals("200")){
 
-        futureWeather.day2wea = (*doc)["daily"][2]["textDay"].as<const char*>();
-        futureWeather.day2wea_img = (*doc)["daily"][2]["iconDay"].as<int>();
-        futureWeather.day2date = (*doc)["daily"][2]["fxDate"].as<const char*>();
-        futureWeather.day2tem_day = (*doc)["daily"][2]["tempMax"].as<int>();
-        futureWeather.day2tem_night = (*doc)["daily"][2]["tempMin"].as<int>();
+          queryFutureWeatherSuccess = true;
+          //读取json节点
+          futureWeather.day0wea = (*doc)["daily"][0]["textDay"].as<const char*>();
+          futureWeather.day0wea_img = (*doc)["daily"][0]["iconDay"].as<int>();
+          futureWeather.day0date = (*doc)["daily"][0]["fxDate"].as<const char*>();
+          futureWeather.day0tem_day = (*doc)["daily"][0]["tempMax"].as<int>();
+          futureWeather.day0tem_night = (*doc)["daily"][0]["tempMin"].as<int>();
 
-        futureWeather.day3wea = (*doc)["daily"][3]["textDay"].as<const char*>();
-        futureWeather.day3wea_img = (*doc)["daily"][3]["iconDay"].as<int>();
-        futureWeather.day3date = (*doc)["daily"][3]["fxDate"].as<const char*>();
-        futureWeather.day3tem_day = (*doc)["daily"][3]["tempMax"].as<int>();
-        futureWeather.day3tem_night = (*doc)["daily"][3]["tempMin"].as<int>();
+          futureWeather.day1wea = (*doc)["daily"][1]["textDay"].as<const char*>();
+          futureWeather.day1wea_img = (*doc)["daily"][1]["iconDay"].as<int>();
+          futureWeather.day1date = (*doc)["daily"][1]["fxDate"].as<const char*>();
+          futureWeather.day1tem_day = (*doc)["daily"][1]["tempMax"].as<int>();
+          futureWeather.day1tem_night = (*doc)["daily"][1]["tempMin"].as<int>();
 
-        futureWeather.day4wea = (*doc)["daily"][4]["textDay"].as<const char*>();
-        futureWeather.day4wea_img = (*doc)["daily"][4]["iconDay"].as<int>();
-        futureWeather.day4date = (*doc)["daily"][4]["fxDate"].as<const char*>();
-        futureWeather.day4tem_day = (*doc)["daily"][4]["tempMax"].as<int>();
-        futureWeather.day4tem_night = (*doc)["daily"][4]["tempMin"].as<int>();
+          futureWeather.day2wea = (*doc)["daily"][2]["textDay"].as<const char*>();
+          futureWeather.day2wea_img = (*doc)["daily"][2]["iconDay"].as<int>();
+          futureWeather.day2date = (*doc)["daily"][2]["fxDate"].as<const char*>();
+          futureWeather.day2tem_day = (*doc)["daily"][2]["tempMax"].as<int>();
+          futureWeather.day2tem_night = (*doc)["daily"][2]["tempMin"].as<int>();
 
-        futureWeather.day5wea = (*doc)["daily"][5]["textDay"].as<const char*>();
-        futureWeather.day5wea_img = (*doc)["daily"][5]["iconDay"].as<int>();
-        futureWeather.day5date = (*doc)["daily"][5]["fxDate"].as<const char*>();
-        futureWeather.day5tem_day = (*doc)["daily"][5]["tempMax"].as<int>();
-        futureWeather.day5tem_night = (*doc)["daily"][5]["tempMin"].as<int>();
+          futureWeather.day3wea = (*doc)["daily"][3]["textDay"].as<const char*>();
+          futureWeather.day3wea_img = (*doc)["daily"][3]["iconDay"].as<int>();
+          futureWeather.day3date = (*doc)["daily"][3]["fxDate"].as<const char*>();
+          futureWeather.day3tem_day = (*doc)["daily"][3]["tempMax"].as<int>();
+          futureWeather.day3tem_night = (*doc)["daily"][3]["tempMin"].as<int>();
 
-        futureWeather.day6wea = (*doc)["daily"][6]["textDay"].as<const char*>();
-        futureWeather.day6wea_img = (*doc)["daily"][6]["iconDay"].as<int>();
-        futureWeather.day6date = (*doc)["daily"][6]["fxDate"].as<const char*>();
-        futureWeather.day6tem_day = (*doc)["daily"][6]["tempMax"].as<int>();
-        futureWeather.day6tem_night = (*doc)["daily"][6]["tempMin"].as<int>();
+          futureWeather.day4wea = (*doc)["daily"][4]["textDay"].as<const char*>();
+          futureWeather.day4wea_img = (*doc)["daily"][4]["iconDay"].as<int>();
+          futureWeather.day4date = (*doc)["daily"][4]["fxDate"].as<const char*>();
+          futureWeather.day4tem_day = (*doc)["daily"][4]["tempMax"].as<int>();
+          futureWeather.day4tem_night = (*doc)["daily"][4]["tempMin"].as<int>();
 
-        log_i("7天天气获取成功");
+          futureWeather.day5wea = (*doc)["daily"][5]["textDay"].as<const char*>();
+          futureWeather.day5wea_img = (*doc)["daily"][5]["iconDay"].as<int>();
+          futureWeather.day5date = (*doc)["daily"][5]["fxDate"].as<const char*>();
+          futureWeather.day5tem_day = (*doc)["daily"][5]["tempMax"].as<int>();
+          futureWeather.day5tem_night = (*doc)["daily"][5]["tempMin"].as<int>();
+
+          futureWeather.day6wea = (*doc)["daily"][6]["textDay"].as<const char*>();
+          futureWeather.day6wea_img = (*doc)["daily"][6]["iconDay"].as<int>();
+          futureWeather.day6date = (*doc)["daily"][6]["fxDate"].as<const char*>();
+          futureWeather.day6tem_day = (*doc)["daily"][6]["tempMax"].as<int>();
+          futureWeather.day6tem_night = (*doc)["daily"][6]["tempMin"].as<int>();
+
+          log_i("7天天气获取成功");
+        }
       }
-    }  
-    delete doc;//销毁doc
-  } 
+      delete doc;//销毁doc
+    } else {
+      log_e("getFutureWeather doc内存分配失败");
+    }
+  }
   if(!queryFutureWeatherSuccess){
     log_e("请求一周天气错误：%d",httpCode);
   }
