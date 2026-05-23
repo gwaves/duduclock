@@ -12,6 +12,7 @@ String scrollText[5]; // 轮播天气的信息
 int currentIndex = 0; // 轮播索引
 int currnetImgAnimIndex = 0; // 太空人动画索引
 int tipsIndex = 0; // 获取数据时，动态文字的索引
+volatile bool gTipsNeedUpdate = false; // 定时器中断标志，提示需要更新
 NowWeather nowWeather; // 记录查询到的实况天气数据
 FutureWeather futureWeather; // 记录查询到的七日天气数据
 unsigned int timerCount = 0; // 计数器的值(ms)
@@ -79,7 +80,18 @@ void IRAM_ATTR onTimerQueryWeather() {
   tQueryFutureWeather.enable();
 } 
 void IRAM_ATTR onTimerShowTips() {
-  // 获取数据时给用户提示
+  // 中断中只做最小操作，UI绘制移到主循环
+  tipsIndex++;
+  if(tipsIndex == 6){
+    tipsIndex = 0;
+  }
+  gTipsNeedUpdate = true;
+}
+
+// 在主循环或轮询中调用，实际执行UI绘制
+void drawTipsIfNeeded(){
+  if(!gTipsNeedUpdate) return;
+  gTipsNeedUpdate = false;
   if(tipsIndex == 0){
     draw2LineText("同步天气数据",".");
   }else if(tipsIndex == 1){
@@ -92,10 +104,6 @@ void IRAM_ATTR onTimerShowTips() {
     draw2LineText("同步天气数据",".....");
   }else if(tipsIndex == 5){
     draw2LineText("同步天气数据","......");
-  }
-  tipsIndex++;
-  if(tipsIndex == 6){
-    tipsIndex = 0;
   }
 }
 // 初始化定时器，让查询天气的多线程任务在一小时后再使能

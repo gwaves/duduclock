@@ -140,6 +140,7 @@ void loop() {
   //Serial.print("start to run\r\n");
   //sing_a_song();
   myButton.tick();
+  drawTipsIfNeeded();
   switch(currentPage){
     case SETTING:  // 配置页面
       doClient(); // 监听客户端配网请求
@@ -278,6 +279,7 @@ void initDatas(){
   getNTPTime();
   struct tm timeinfo;
   while (!getLocalTime(&timeinfo)){
+    drawTipsIfNeeded();
     time_t end;
     time(&end);
     if((end - start) > synDataRestartTime){
@@ -289,6 +291,7 @@ void initDatas(){
   //第一次查询实况天气,如果查询失败，就一直反复查询
   getNowWeather();
   while(!queryNowWeatherSuccess){
+    drawTipsIfNeeded();
     time_t end;
     time(&end);
     if((end - start) > synDataRestartTime){
@@ -296,11 +299,11 @@ void initDatas(){
     }
     err_cnt++;
     if(err_cnt > 3) { // 错误超过三次退出。
-      sleep(1);
+      delay(1000);
       restartSystem("同步数据失败", true);
     }
     Serial.println("实况天气查询失败...重试中...");
-    sleep(1);
+    delay(1000);
     getNowWeather();
   }
   log_i("实况天气查询成功");
@@ -308,6 +311,7 @@ void initDatas(){
   err_cnt = 0;
   getAir();
   while(!queryAirSuccess){
+    drawTipsIfNeeded();
     time_t end;
     time(&end);
     if((end - start) > synDataRestartTime){
@@ -315,10 +319,10 @@ void initDatas(){
     }
     err_cnt++;
     if(err_cnt > 3) { // 错误超过三次退出。
-      sleep(1);
+      delay(1000);
       restartSystem("查询空气质量失败", true);
     }
-    sleep(1);
+    delay(1000);
     getAir();
   }
   log_i("空气质量查询成功");
@@ -326,6 +330,7 @@ void initDatas(){
   err_cnt = 0;
   getFutureWeather();
   while(!queryFutureWeatherSuccess){
+    drawTipsIfNeeded();
     time_t end;
     time(&end);
     if((end - start) > synDataRestartTime){
@@ -333,15 +338,16 @@ void initDatas(){
     }
     err_cnt++;
     if(err_cnt > 3) { // 错误超过三次退出。
-      sleep(1);
+      delay(1000);
       restartSystem("查询未来天气失败", true);
     }
-    sleep(1); 
+    delay(1000);
     getFutureWeather();
   }
   log_i("一周天气查询成功");
   //结束循环显示提示文字的定时器
   timerEnd(timerShowTips);
+  timerShowTips = NULL;
   //将isStartQuery置为false,告诉系统，启动时查询天气已完成
   isStartQuery = false;
 }
