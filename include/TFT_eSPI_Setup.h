@@ -1,6 +1,7 @@
 // TFT_eSPI configuration for DuduClock
 // Loaded automatically via -include build flag
 
+#define USER_SETUP_LOADED
 #define USER_SETUP_INFO "DuduClock"
 
 #define ST7789_DRIVER

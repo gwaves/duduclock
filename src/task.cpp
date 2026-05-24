@@ -555,12 +555,7 @@ void drawNumsByCount(unsigned int count){
 }
 // 绘制天气相关内容
 void drawWeatherContent(){
-  //将显示温湿度文字的地方先置为白色，防止温度刷新时，屏幕有残影
-  clk.createSprite(57, 80);
-  clk.fillSprite(backFillColor);  
-  clk.pushSprite(113,230);
-  clk.deleteSprite();
-  //绘制温湿度条
+  //绘制温湿度条（内部已处理清屏，避免数字变化残影）
   drawTHProgressBar(nowWeather.temp,nowWeather.humidity);
   //绘制城市、空气质量
   drawCityAir(city,nowWeather.air);
@@ -725,6 +720,8 @@ void drawCityAir(String city,int air){
 }
 // 绘制温湿度数据
 void drawTHProgressBar(int temperature, int humidity){
+  // 清除整个温湿度文字区域（左右两侧），防止数字位数或正负号变化时产生残影
+  tft.fillRect(28, 238, 142, 58, backFillColor);
   tft.loadFont(city_wea_24);
   tft.setTextColor(penColor,backFillColor);
   if(temperature < 0){
