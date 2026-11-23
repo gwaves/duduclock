@@ -5,6 +5,7 @@
 #include <esp32-hal-log.h>
 #include "ArduinoZlib.h"
 #include "common.h"
+#include "weather_credentials.h"
 #include "preferencesUtil.h"
 #include "tftUtil.h"
 #include "task.h"
@@ -33,8 +34,6 @@ String city;  // 城市
 String adm; // 上级城市区划
 String location; // 城市ID
 String WifiNames; // 根据搜索到的wifi生成的option字符串
-String dft_wifi_exist; // 默认wifi是否存在NULL,or "yes" or "no"
-String myPubIP;
 // SoftAP相关
 const char *APssid = "TaoTaoClock";
 IPAddress staticIP(192, 168, 1, 1);
@@ -75,7 +74,6 @@ void handleRoot(){
 void handleConfigWifi(){
   //判断是否有WiFi名称
   if (server.hasArg("ssid")){
-    log_i("获得WiFi名称: %s",server.arg("ssid").c_str());
     ssid = server.arg("ssid");
   }else{
     log_e("错误, 没有发现WiFi名称");
@@ -84,7 +82,6 @@ void handleConfigWifi(){
   }
   //判断是否有WiFi密码
   if (server.hasArg("pass")){
-    log_i("获得WiFi密码:%s",server.arg("pass").c_str());
     pass = server.arg("pass");    
   }else{
     log_e("错误, 没有发现WiFi密码");
@@ -94,39 +91,8 @@ void handleConfigWifi(){
   // 将信息存入nvs中
   setNvsWifi();
   // 获得了所需要的一切信息，给客户端回复
-  server.send(200, "text/html", "<meta charset='UTF-8'><style type='text/css'>body {font-size: 2rem;}</style><br/><br/>WiFi: " + ssid + "<br/>密码: " + pass + "<br/>已取得相关信息,正在尝试连接,请手动关闭此页面。");
+  server.send(200, "text/html", "<meta charset='UTF-8'><style type='text/css'>body {font-size: 2rem;}</style><br/><br/>已取得相关信息,正在尝试连接,请手动关闭此页面。");
   restartSystem("即将尝试连接", false);
-}
-//尝试连接默认的wifi，如果失败，返回，并进入正常wifi获取流程
-int connectDefaultWiFi(int timeOut_s){
-  delay(1500); // 让“系统启动中”字样多显示一会
-  drawText("正在连接默认网络...");
-  log_i("正在连接默认网络,wifi stutas:%d",WiFi.status());
-  int connectTime = 0; //用于连接计时，如果长时间连接不成功，复位设备
-  pinMode(D4,OUTPUT);
-  ssid = "tommy-home";
-  log_i("正在连接网络%s",ssid.c_str());
-  pass = "tommy-ssid";
-  
-  WiFi.begin(ssid, pass);
-  while (WiFi.status() != WL_CONNECTED) {
-    log_printf(".");
-    digitalWrite(D4, !digitalRead(D4));
-    delay(500);
-    connectTime++;
-    if (connectTime > 2 * timeOut_s){ //长时间连接不上，清除nvs中保存的网络数据，并重启系统
-      log_e("网络连接失败");
-      ssid = "";
-      pass = "";
-      return -1;
-    }
-    
-  }
-  digitalWrite(D4, LOW); // 连接成功后，将D4指示灯熄灭
-  setNvsWifi(); // 将信息存入nvs中  
-  log_i("网络连接成功");
-  log_i("本地IP: %d.%d.%d.%d",WiFi.localIP()[0],WiFi.localIP()[1],WiFi.localIP()[2],WiFi.localIP()[3]);
-  return 0;
 }
 // 连接WiFi
 void connectWiFi(int timeOut_s){
@@ -135,7 +101,6 @@ void connectWiFi(int timeOut_s){
   int connectTime = 0; //用于连接计时，如果长时间连接不成功，复位设备
   pinMode(D4,OUTPUT);
   log_i("正在连接网络");
-  log_i("%s",ssid.c_str());
   
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
@@ -216,43 +181,6 @@ void scanWiFi(){
   }
 }
 
-//查询我的公网地址
-int getMyPubIP(){
-  HTTPClient http;
-  http.setConnectTimeout(queryTimeout);
-  http.begin(myipURL);
-  log_i("start to get my public IP:%s",myipURL.c_str());
-  int httpCode = http.GET();
-  if (httpCode== HTTP_CODE_OK)
-  {
-    /* code */
-    String payload = http.getString();
-    log_d("%s",payload);
-    //解析json数据
-    StaticJsonDocument<64> doc;//小请求，用静态分配
-    DeserializationError error = deserializeJson(doc, payload); //反序列化JSON数据
-    if(!error){ //检查反序列化是否成功
-      myPubIP = doc["ip"].as<const char*>();
-      log_i("我的IP地址: %s",myPubIP.c_str());
-    }
-    else{
-      log_e("解析json数据失败");
-      http.end();
-      return -1;
-    }
-  }
-  else{
-    log_e("获取IP地址错误：");
-    log_e("HTTP Code: %d", httpCode);
-    log_e("IP地址错误，即将重启系统");
-    http.end();
-    return -1;
-    
-  }
-  http.end();
-  return 0;
-}
-
 //请求GEOIP库获得城市信息
 int getMyGeo(){
   HTTPClient http;
@@ -263,7 +191,6 @@ int getMyGeo(){
   if (httpCode== HTTP_CODE_OK)
   {
     String payload = http.getString();
-    log_d("%s",payload);
     StaticJsonDocument<512> doc;
     DeserializationError error = deserializeJson(doc, payload);
     if(!error){
@@ -300,15 +227,15 @@ int getMyGeo(){
 
 // 查询城市id
 int getCityID(){
+  if (!weatherConfigured()) return -1;
   String data = "";
   if(city.isEmpty()){
     log_e("城市名为空，跳过获取城市ID");
     return -1;
   }
-  bool flag = false; // 是否成功获取到城市id的标志
-  String url = cityURL + KEY + "&location=" + urlEncode(city) + "&adm=" + urlEncode(adm);
+  bool flag = false;
+  String url = cityURL + weatherApiKey + "&location=" + urlEncode(city) + "&adm=" + urlEncode(adm);
 
-  log_d("url: %s",url.c_str());
   HTTPClient httpClient;
   httpClient.setConnectTimeout(queryTimeout * 5);
   httpClient.begin(url);
@@ -372,14 +299,14 @@ int getCityID(){
       DeserializationError error = deserializeJson(*doc, data); //反序列化JSON数据
       if(!error){ //检查反序列化是否成功
         //读取json节点
-        String code = (*doc)["code"].as<const char*>();
+        String code = (*doc)["code"] | "";
         if(code.equals("200")){
-          flag = true;
-          // 多结果的情况下，取第一个
-          location = (*doc)["location"][0]["id"].as<const char*>();
-          log_i("城市id :%s",location);
-          // 将信息存入nvs中
-          setNvsCityID();
+          const char* id = (*doc)["location"][0]["id"].as<const char*>();
+          if (id != nullptr && *id != '\0') {
+            location = id;
+            setNvsCityID();
+            flag = true;
+          }
         }
       } else {
         log_e("JSON反序列化失败: %s", error.c_str());
@@ -395,9 +322,8 @@ int getCityID(){
 
   if(!flag){
     log_e("获取城市id错误：%d",httpCode);
-    log_e("城市错误，即将重启系统");
-    clearWiFiCity(); // 清除配置好的信息
-    restartSystem("城市名称无效", false);
+    // Keep prior Wi-Fi, city, theme and location on an API or transport error.
+    return -1;
   }
   log_i("获取城市ID成功");
   return 0;
@@ -407,7 +333,8 @@ int getCityID(){
 void getNowWeather(){
   String data = "";
   queryNowWeatherSuccess = false; // 先置为false
-  String url = nowURL + KEY + "&location=" + location;
+  if (!weatherConfigured() || location.isEmpty()) return;
+  String url = nowURL + weatherApiKey + "&location=" + location;
   HTTPClient httpClient;
   httpClient.setConnectTimeout(queryTimeout);
   httpClient.begin(url);
@@ -449,7 +376,6 @@ void getNowWeather(){
           data += (char)outbuf[i];
         }
 
-        log_v("%s", data.c_str());
       }
       delay(1);
     }
@@ -462,7 +388,7 @@ void getNowWeather(){
       DeserializationError error = deserializeJson(*doc, data); //反序列化JSON数据
       if(!error){ //检查反序列化是否成功
         //读取json节点
-        String code = (*doc)["code"].as<const char*>();
+        String code = (*doc)["code"] | "";
         if(code.equals("200")){
           queryNowWeatherSuccess = true;
           //读取json节点
@@ -495,7 +421,8 @@ void getNowWeather(){
 void getAir(){
   String data = "";
   queryAirSuccess = false; // 先置为false
-  String url = airURL + KEY + "&location=" + location;
+  if (!weatherConfigured() || location.isEmpty()) return;
+  String url = airURL + weatherApiKey + "&location=" + location;
   HTTPClient httpClient;
   httpClient.setConnectTimeout(queryTimeout);
   httpClient.begin(url);
@@ -537,7 +464,6 @@ void getAir(){
           data += (char)outbuf[i];
         }
 
-        log_v("%s",data.c_str());
       }
       delay(1);
     }
@@ -559,7 +485,7 @@ void getAir(){
       DeserializationError error = deserializeJson(*doc, data, DeserializationOption::Filter(jsonFilter)); //反序列化JSON数据
       if(!error){ //检查反序列化是否成功
         //读取json节点
-        String code = (*doc)["code"].as<const char*>();
+        String code = (*doc)["code"] | "";
         if(code.equals("200")){
           queryAirSuccess = true;
           //读取json节点
@@ -572,12 +498,10 @@ void getAir(){
           nowWeather.o3 = (*doc)["now"]["o3"].as<const char*>();
           log_i("空气质量获取成功");
         } else {
-          log_e("空气质量API业务码错误: %s", code.c_str());
-          log_e("响应: %s", data.c_str());
+          log_e("空气质量API业务码错误");
         }
       } else {
         log_e("空气质量JSON解析失败: %s", error.c_str());
-        log_e("响应: %s", data.c_str());
       }
       delete doc;//销毁doc
     } else {
@@ -594,8 +518,8 @@ void getAir(){
 void getFutureWeather(){
   String data = "";
   queryFutureWeatherSuccess = false; // 先置为false
-  String url = futureURL + KEY + "&location=" + location;
-  log_v("查询未来天气URL：%s",url);
+  if (!weatherConfigured() || location.isEmpty()) return;
+  String url = futureURL + weatherApiKey + "&location=" + location;
   HTTPClient httpClient;
   httpClient.setConnectTimeout(queryTimeout);
   httpClient.begin(url);
@@ -664,7 +588,7 @@ void getFutureWeather(){
         //读取json节点
         size_t serializedSize = measureJson(*doc);
         log_v("反序列化成功,data_len: %d\n",serializedSize);
-        String code = (*doc)["code"].as<const char*>();
+        String code = (*doc)["code"] | "";
 
         if(code.equals("200")){
 
