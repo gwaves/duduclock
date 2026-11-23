@@ -20,16 +20,6 @@ void getNvsWifi(){
   pass = prefs.getString("pass", "");
   prefs.end();
 }
-void setNvsDefaultWifiStat(){
-  prefs.begin("clock");
-  prefs.putString("dft_wifi_exist", dft_wifi_exist);
-  prefs.end();
-}
-void getNvsDefaultWifiStat(){
-  prefs.begin("clock");
-  dft_wifi_exist = prefs.getString("dft_wifi_exist", "");
-  prefs.end();
-}
 void setNvsWifi(){
   prefs.begin("clock");
   prefs.putString("ssid", ssid);
@@ -100,16 +90,5 @@ void getBackColor(){
 void setBackColor(int backColor){
   prefs.begin("clock");
   prefs.putInt("backColor",backColor);
-  prefs.end();
-}
-
-// 测试用，在读取NVS之前，先写入自己的Wifi信息，免得每次浪费时间再配网
-void setInfo4Test(){
-  prefs.begin("clock");
-  prefs.putString("ssid", "REDACTED_CREDENTIAL");
-  prefs.putString("pass", "REDACTED_CREDENTIAL");
-  prefs.putString("city", "海淀");
-  prefs.putString("adm", "北京市");
-  prefs.putString("location", "101010200");
   prefs.end();
 }

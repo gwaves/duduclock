@@ -65,8 +65,6 @@
 #define BACK_WHITE 1
 #define D4 12  // 开发板D4灯
 #define BUTTON 8 // 按钮引脚
-//#define KEY "REDACTED_CREDENTIAL"  //test_tianqi key
-#define KEY "REDACTED_CREDENTIAL"  //pay money key
 // 天气接口
 const String cityURL = "https://geoapi.qweather.com/v2/city/lookup?key=";  //查询城市代码的接口
 //以下地址为付费地址，每十次1分钱。
@@ -74,9 +72,6 @@ const String nowURL = "https://api.qweather.com/v7/weather/now?key="; // 实时�
 //const String futureURL = "https://api.qweather.com/v7/weather/3d?key="; // 3日天气预报接口
 const String futureURL = "https://api.qweather.com/v7/weather/7d?key="; // 7日天气预报接口
 const String airURL = "https://api.qweather.com/v7/air/now?key="; // 空气质量接口
-const String myipURL = "http://ali.liutao1.com/get_ip"; // 获取本机IP地址
-const String myIPGeoURL = "http://api.ipshudi.com/ipdata/?ip=";
-const String myIPGeoURL2 = "&datatype=jsonp&token=REDACTED_CREDENTIAL";//token
 
 //以下地址为免费API地址，每天1000次请求
 //const String nowURL = "https://devapi.qweather.com/v7/weather/now?key="; // 实时天气接口

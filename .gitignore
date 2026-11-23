@@ -6,3 +6,6 @@
 idf-env.exe
 idf-driver-esp32-usb-jtag-2021-07-15.zip
 src/DuduClock_2.0.ino.cpp
+
+# Per-device credentials (never commit).
+/include/duduclock_secrets.h
