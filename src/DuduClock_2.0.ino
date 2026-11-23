@@ -1,6 +1,7 @@
 #include <OneButton.h>
 #include "net.h"
 #include "common.h"
+#include "weather_credentials.h"
 #include "preferencesUtil.h"
 #include "tftUtil.h"
 #include "task.h"
@@ -37,82 +38,22 @@ void setup() {
   // 显示系统启动文字
   drawText("系统启动中...");
   
-  // 测试的时候，先写入WiFi信息，省的配网，生产环境请注释掉
-  //setInfo4Test();
-  
-  // 查询是否有配置过Wifi，没有->进入Wifi配置页面（0），有->进入天气时钟页面（1）
-  //getWiFiCity();
   getNvsWifi();
-// nvs中没有WiFi信息，进入配置页面
-  if(ssid.length() == 0 || pass.length() == 0 ){
-    getNvsDefaultWifiStat();
-    if(dft_wifi_exist.equals("")){
-      //尝试连接默认wifi
-      log_i("首次尝试连接默认wifi");
-      if(connectDefaultWiFi(2)==0){
-        //连接默认wifi成功，不进入配置页面，直接进入时钟页面
-        currentPage = WEATHER;  
-        dft_wifi_exist = "yes";    
-        setNvsDefaultWifiStat();
-        wifiInited = 1;
-        log_i("连接默认网络成功");
-      }else{
-        dft_wifi_exist = "no";
-        setNvsDefaultWifiStat(); 
-        log_i("连接默认网络失败");
-        restartSystem("连接默认网络失败,重启", true);
-        
-      }
-    }else{ //有默认wifi信息，但是连接失败，进入配置页面
-      currentPage = SETTING; // 将页面置为配置页面
-      wifiConfigBySoftAP(); // 开启SoftAP配置WiFi
-    }
-    
-  }else{ // 有WiFi信息，连接WiFi后进入时钟页面
-    currentPage = WEATHER; // 将页面置为时钟页面
-    // 连接WiFi,30秒超时重启并恢复出厂设置
-    connectWiFi(30); 
+  if (ssid.isEmpty() || pass.isEmpty()) {
+    currentPage = SETTING;
+    wifiConfigBySoftAP();
+  } else {
+    currentPage = WEATHER;
+    connectWiFi(30);
     wifiInited = 1;
   }
-  if(wifiInited == 1){  //wifi 未初始化的话，什么都不做，等配置wifi重启 
-    int ret = 0;
-    int retryCnt = 0;
+  if (wifiInited == 1) {
     getNvsCity();
-    log_i("city:%s",city.c_str());
-    log_i("location:%s",location.c_str());
-    if(city.equals("")){
-      ret = getMyPubIP();
-      while(ret != 0 && retryCnt < 3){
-        ret = getMyPubIP();
-        if(ret == 0){
-          retryCnt = 0;
-          break;
-        }
-        retryCnt++;
-      }
-      if(ret != 0 && retryCnt >= 3){
-        restartSystem("获取公网IP失败", true);
-      }
-
-      retryCnt = 0;
-      ret = getMyGeo();
-      while(ret != 0 && retryCnt < 3){
-        ret = getMyGeo();
-        if(ret == 0){
-          retryCnt = 0;
-          break;
-        }
-        retryCnt++;
-      }
-      if (ret != 0 && retryCnt >= 3)
-      {
-        restartSystem("获取城市信息失败", true);
-      }
-      
-      // 查询是否有城市id，如果没有，就利用city和adm查询出城市id，并保存为location
-      if(location.equals("")){
-        getCityID();
-      }
+    if (weatherConfigured()) {
+      if (city.isEmpty()) getMyGeo();
+      if (location.isEmpty()) getCityID();
+    } else {
+      log_w("未配置和风天气 API 密钥；跳过天气服务");
     }
 
     // 初始化一些列数据:NTP对时、实况天气、一周天气
@@ -266,7 +207,6 @@ void longclick(){
 
 // 初始化一些列数据:NTP对时、实况天气、一周天气
 void initDatas(){
-  uint8_t err_cnt=0;
   startTimerShowTips(); // 获取数据时，循环显示提示文字
   // 记录此时的时间，在同步数据时，超过一定的时间，就直接重启
   time_t start;
@@ -284,63 +224,13 @@ void initDatas(){
     Serial.println("时钟对时失败...");
     getNTPTime();
   }
-  //第一次查询实况天气,如果查询失败，就一直反复查询
-  getNowWeather();
-  while(!queryNowWeatherSuccess){
-    drawTipsIfNeeded();
-    time_t end;
-    time(&end);
-    if((end - start) > synDataRestartTime){
-      restartSystem("同步当前天气数据失败", true);
-    }
-    err_cnt++;
-    if(err_cnt > 3) { // 错误超过三次退出。
-      delay(1000);
-      restartSystem("同步数据失败", true);
-    }
-    Serial.println("实况天气查询失败...重试中...");
-    delay(1000);
+  // Weather and AQI are optional at boot. Do not restart on provider errors;
+  // the periodic tasks can refresh successfully configured services later.
+  if (weatherConfigured() && !location.isEmpty()) {
     getNowWeather();
-  }
-  log_i("实况天气查询成功");
-  //第一次查询空气质量,如果查询失败，就一直反复查询
-  err_cnt = 0;
-  getAir();
-  while(!queryAirSuccess){
-    drawTipsIfNeeded();
-    time_t end;
-    time(&end);
-    if((end - start) > synDataRestartTime){
-      restartSystem("查询空气质量失败", true);
-    }
-    err_cnt++;
-    if(err_cnt > 3) { // 错误超过三次退出。
-      delay(1000);
-      restartSystem("查询空气质量失败", true);
-    }
-    delay(1000);
     getAir();
-  }
-  log_i("空气质量查询成功");
-  //第一次查询一周天气,如果查询失败，就一直反复查询
-  err_cnt = 0;
-  getFutureWeather();
-  while(!queryFutureWeatherSuccess){
-    drawTipsIfNeeded();
-    time_t end;
-    time(&end);
-    if((end - start) > synDataRestartTime){
-      restartSystem("同步数据失败", true);
-    }
-    err_cnt++;
-    if(err_cnt > 3) { // 错误超过三次退出。
-      delay(1000);
-      restartSystem("查询未来天气失败", true);
-    }
-    delay(1000);
     getFutureWeather();
   }
-  log_i("一周天气查询成功");
   //结束循环显示提示文字的定时器
   timerEnd(timerShowTips);
   timerShowTips = NULL;

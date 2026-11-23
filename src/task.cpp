@@ -2,6 +2,7 @@
 #include "tftUtil.h"
 #include "net.h"
 #include "common.h"
+#include "weather_credentials.h"
 #include <dht11.h> //temp sensor
 
 dht11 DHT;
@@ -493,6 +494,10 @@ void tScrollAnimCallback(){
 }
 // 查询天气和空气质量
 void tQueryWeatherCallback(){
+  // Recover from a transient startup lookup failure without clearing settings.
+  if (weatherConfigured() && location.isEmpty() && !city.isEmpty()) {
+    getCityID();
+  }
   getNowWeather();
   getAir();
   if(queryNowWeatherSuccess || queryAirSuccess){
